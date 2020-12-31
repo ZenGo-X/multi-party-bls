@@ -1,0 +1,17 @@
+[package]
+name = "bls"
+version = "0.1.1"
+authors = ["Doron <doronz@zengo.com>", "Omer <omer@zengo.com>"]
+description = "threshold BLS library"
+edition = "2018"
+
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+curv = { git = "https://github.com/ZenGo-X/curv", tag = "v0.5.2"}
+zeroize = "0.10"
+rand = "0.7.3"
+
+[lib]
+crate-type = ["lib"]
