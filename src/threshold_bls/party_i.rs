@@ -258,12 +258,20 @@ impl SharedKeys {
         }
 
         let (head, tail) = partial_sigs_vec.split_at(1);
-        let sigma = tail.iter().fold(
+        let sigma = tail[0..self.params.threshold].iter().fold(
             &head[0].sigma_i
-                * &VerifiableSS::<GE1>::map_share_to_new_params(&self.params, head[0].index, s),
+                * &VerifiableSS::<GE1>::map_share_to_new_params(
+                    &self.params,
+                    head[0].index,
+                    &s[0..self.params.threshold + 1],
+                ),
             |acc, x| {
                 acc + &x.sigma_i
-                    * &VerifiableSS::<GE1>::map_share_to_new_params(&self.params, x.index, s)
+                    * &VerifiableSS::<GE1>::map_share_to_new_params(
+                        &self.params,
+                        x.index,
+                        &s[0..self.params.threshold + 1],
+                    )
             },
         );
 
