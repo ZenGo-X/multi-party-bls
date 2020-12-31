@@ -262,13 +262,6 @@ impl SharedKeys {
             &head[0].sigma_i
                 * &VerifiableSS::<GE1>::map_share_to_new_params(&self.params, head[0].index, s),
             |acc, x| {
-                // i = i + 1;
-                println!("index {:?}", x.index.clone());
-                println!(
-                    "lambda {:?}",
-                    VerifiableSS::<GE1>::map_share_to_new_params(&self.params, x.index, s)
-                );
-
                 acc + &x.sigma_i
                     * &VerifiableSS::<GE1>::map_share_to_new_params(&self.params, x.index, s)
             },

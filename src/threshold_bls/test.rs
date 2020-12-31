@@ -61,8 +61,6 @@ fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
         party_keys_vec.iter().map(|k| k.phase1_broadcast()).unzip();
 
     let y_vec = (0..n).map(|i| decom_vec[i].y_i).collect::<Vec<GE2>>();
-    // let (head, tail) = y_vec.split_at(1);
-    // let y_sum = tail.iter().fold(head[0], |acc, x| acc + x);
 
     let mut vss_scheme_vec = Vec::new();
     let mut secret_shares_vec = Vec::new();
@@ -81,8 +79,6 @@ fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
         secret_shares_vec.push(secret_shares); // cannot unzip
         index_vec.push(index);
     }
-
-    // let vss_scheme_for_test = vss_scheme_vec.clone();
 
     let party_shares = (0..n)
         .map(|i| {
