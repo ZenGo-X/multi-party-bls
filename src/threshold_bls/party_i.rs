@@ -241,8 +241,34 @@ impl SharedKeys {
 
         let partial_sigs_verify = (0..vk_vec.len())
             .map(|i| {
-                let left = Pair::compute_pairing(&H_x, &vk_vec[i]);
-                let right = Pair::compute_pairing(&partial_sigs_vec[i].sigma_i, &GE2::generator());
+                use pairing_plus::CurveAffine;
+                use pairing_plus::Engine;
+
+                let mut negate_H_x = H_x.get_element();
+                negate_H_x.negate();
+                // pairing_plus::bls12_381::Bls12::pairing_product(
+                //     negate_H_x,
+                //     vk_vec[i].get_element(),
+                //     partial_sigs_vec[i].sigma_i.get_element(),
+                //     GE2::generator().get_element(),
+                // );
+                let product = pairing_plus::bls12_381::Bls12::final_exponentiation(
+                    &pairing_plus::bls12_381::Bls12::miller_loop(
+                        [
+                            (
+                                &(negate_H_x.prepare()),
+                                &(vk_vec[i].get_element().prepare()),
+                            ),
+                            (
+                                &(partial_sigs_vec[i].sigma_i.get_element().prepare()),
+                                &(GE2::generator().get_element().prepare()),
+                            ),
+                        ]
+                        .iter(),
+                    ),
+                );
+                // let left = Pair::compute_pairing(&H_x, &vk_vec[i]);
+                // let right = Pair::compute_pairing(&partial_sigs_vec[i].sigma_i, &GE2::generator());
                 let delta = ECDDHStatement {
                     g1: H_x.clone(),
                     h1: partial_sigs_vec[i].sigma_i.clone(),
@@ -250,7 +276,9 @@ impl SharedKeys {
                     h2: vk_vec[i],
                 };
 
-                partial_sigs_vec[i].ddh_proof.verify(&delta) && left == right
+                use ff::Field;
+                partial_sigs_vec[i].ddh_proof.verify(&delta)
+                    && product == Some(pairing_plus::bls12_381::Fq12::one())
             })
             .all(|x| x);
         if partial_sigs_verify == false {
