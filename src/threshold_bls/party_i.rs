@@ -11,7 +11,7 @@ use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::BigInt;
 
 use crate::basic_bls::BLSSignature;
-use crate::threshold_bls::utlities::{ECDDHProof, ECDDHStatement, ECDDHWitness};
+use crate::threshold_bls::utilities::{ECDDHProof, ECDDHStatement, ECDDHWitness};
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
 use curv::elliptic::curves::bls12_381::g1::FE as FE1;
 use curv::elliptic::curves::bls12_381::g1::GE as GE1;

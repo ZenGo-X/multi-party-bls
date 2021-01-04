@@ -3,4 +3,4 @@
 pub mod party_i;
 #[cfg(test)]
 pub mod test;
-pub mod utlities;
+pub mod utilities;
