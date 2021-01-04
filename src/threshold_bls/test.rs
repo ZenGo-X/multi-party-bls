@@ -48,7 +48,7 @@ fn test_sign_n8_t4_tprime6() {
     sign(&message[..], 4, 8, &signatories[..])
 }
 
-fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
+pub fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
     let parames = ShamirSecretSharing {
         threshold: t,
         share_count: n,
@@ -125,7 +125,7 @@ fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
     (shared_keys_vec, vk_vec)
 }
 
-fn sign(message: &[u8], t: usize, n: usize, s: &[usize]) {
+pub fn sign(message: &[u8], t: usize, n: usize, s: &[usize]) {
     // run keygen
     let (shared_keys_vec, vk_vec) = keygen_t_n_parties(t, n);
 
