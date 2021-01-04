@@ -21,7 +21,7 @@ fn test_keygen_t2_n3() {
 fn test_sign_n2_t1_tprime2() {
     let message = vec![100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 1];
-    sign(&message[..], 1, 2, &signatories[..]);
+    sign(&message[..], 1, 2, &signatories[..], None);
 }
 
 // 3 out of 3
@@ -29,7 +29,7 @@ fn test_sign_n2_t1_tprime2() {
 fn test_sign_n3_t2_tprime3() {
     let message = vec![100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 1, 2];
-    sign(&message[..], 2, 3, &signatories[..]);
+    sign(&message[..], 2, 3, &signatories[..], None);
 }
 
 // 3 out of 5 with 4 signatories
@@ -37,7 +37,7 @@ fn test_sign_n3_t2_tprime3() {
 fn test_sign_n5_t2_tprime4() {
     let message = [100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 2, 3, 4];
-    sign(&message[..], 2, 5, &signatories[..])
+    sign(&message[..], 2, 5, &signatories[..], None)
 }
 
 // 5 out of 8 with 6 signatories
@@ -45,7 +45,7 @@ fn test_sign_n5_t2_tprime4() {
 fn test_sign_n8_t4_tprime6() {
     let message = vec![100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 1, 2, 4, 6, 7];
-    sign(&message[..], 4, 8, &signatories[..])
+    sign(&message[..], 4, 8, &signatories[..], None)
 }
 
 pub fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
@@ -125,9 +125,15 @@ pub fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
     (shared_keys_vec, vk_vec)
 }
 
-pub fn sign(message: &[u8], t: usize, n: usize, s: &[usize]) {
+pub fn sign(
+    message: &[u8],
+    t: usize,
+    n: usize,
+    s: &[usize],
+    keygen: Option<(Vec<SharedKeys>, Vec<GE2>)>,
+) {
     // run keygen
-    let (shared_keys_vec, vk_vec) = keygen_t_n_parties(t, n);
+    let (shared_keys_vec, vk_vec) = keygen.unwrap_or_else(|| keygen_t_n_parties(t, n));
 
     let t_prime = s.len();
     //carry on signing with shared keys of indices from s
