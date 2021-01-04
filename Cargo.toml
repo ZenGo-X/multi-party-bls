@@ -15,3 +15,15 @@ rand = "0.7.3"
 
 [lib]
 crate-type = ["lib"]
+
+[features]
+# Internally used feature for testing purposes. You normally don't want to use it.
+dev = []
+
+[[bench]]
+name = "criterion"
+harness = false
+required-features = ["dev"]
+
+[dev-dependencies]
+criterion = "0.3.3"
