@@ -17,7 +17,6 @@ use curv::elliptic::curves::bls12_381::g1::FE as FE1;
 use curv::elliptic::curves::bls12_381::g1::GE as GE1;
 use curv::elliptic::curves::bls12_381::g2::FE as FE2;
 use curv::elliptic::curves::bls12_381::g2::GE as GE2;
-use curv::elliptic::curves::bls12_381::Pair;
 use serde::{Deserialize, Serialize};
 
 const SECURITY: usize = 256;
@@ -241,8 +240,6 @@ impl SharedKeys {
 
         let partial_sigs_verify = (0..vk_vec.len())
             .map(|i| {
-                let left = Pair::compute_pairing(&H_x, &vk_vec[i]);
-                let right = Pair::compute_pairing(&partial_sigs_vec[i].sigma_i, &GE2::generator());
                 let delta = ECDDHStatement {
                     g1: H_x.clone(),
                     h1: partial_sigs_vec[i].sigma_i.clone(),
@@ -250,7 +247,7 @@ impl SharedKeys {
                     h2: vk_vec[i],
                 };
 
-                partial_sigs_vec[i].ddh_proof.verify(&delta) && left == right
+                partial_sigs_vec[i].ddh_proof.verify(&delta)
             })
             .all(|x| x);
         if partial_sigs_verify == false {
