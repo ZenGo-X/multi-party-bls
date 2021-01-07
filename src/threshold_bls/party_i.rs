@@ -80,7 +80,7 @@ impl Keys {
         Keys {
             u_i: u,
             y_i: y,
-            party_index: index.clone(),
+            party_index: index,
         }
     }
 
