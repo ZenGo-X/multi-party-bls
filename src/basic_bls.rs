@@ -7,7 +7,8 @@ use curv::elliptic::curves::bls12_381::g2::GE as GE2;
 use curv::elliptic::curves::bls12_381::Pair;
 use curv::elliptic::curves::traits::{ECPoint, ECScalar};
 
-use pairing_plus::bls12_381::G1Affine;
+use ff_zeroize::Field;
+use pairing_plus::bls12_381::{Fq12, G1Affine};
 use pairing_plus::serdes::SerDes;
 
 /// Based on https://eprint.iacr.org/2018/483.pdf
@@ -44,9 +45,8 @@ impl BLSSignature {
     // check e(H(m), Y) == e(sigma, g2)
     pub fn verify(&self, message: &[u8], pubkey: &GE2) -> bool {
         let H_m = GE1::hash_to_curve(message);
-        let left = Pair::compute_pairing(&H_m, pubkey);
-        let right = Pair::compute_pairing(&self.sigma, &GE2::generator());
-        left == right
+        let product = Pair::efficient_pairing_mul(&H_m, pubkey, &self.sigma, &(-GE2::generator()));
+        product.e == Fq12::one()
     }
 
     pub fn to_bytes(&self, compressed: bool) -> Vec<u8> {
