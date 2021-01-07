@@ -4,7 +4,7 @@ use crate::threshold_bls::party_i::SharedKeys;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
 use curv::elliptic::curves::bls12_381::g2::FE;
 use curv::elliptic::curves::bls12_381::g2::GE as GE2;
-use curv::elliptic::curves::traits::ECScalar;
+use curv::elliptic::curves::traits::{ECPoint, ECScalar};
 
 #[test]
 fn test_keygen_t1_n2() {
@@ -37,7 +37,7 @@ fn test_sign_n3_t2_tprime3() {
 fn test_sign_n5_t2_tprime4() {
     let message = [100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 2, 3, 4];
-    sign(&message[..], 2, 5, &signatories[..], None)
+    sign(&message[..], 2, 5, &signatories[..], None);
 }
 
 // 5 out of 8 with 6 signatories
@@ -45,7 +45,7 @@ fn test_sign_n5_t2_tprime4() {
 fn test_sign_n8_t4_tprime6() {
     let message = vec![100, 101, 102, 103];
     let signatories: Vec<usize> = vec![0, 1, 2, 4, 6, 7];
-    sign(&message[..], 4, 8, &signatories[..], None)
+    sign(&message[..], 4, 8, &signatories[..], None);
 }
 
 pub fn keygen_t_n_parties(t: usize, n: usize) -> (Vec<SharedKeys>, Vec<GE2>) {
@@ -131,7 +131,7 @@ pub fn sign(
     n: usize,
     s: &[usize],
     keygen: Option<(Vec<SharedKeys>, Vec<GE2>)>,
-) {
+) -> BLSSignature {
     // run keygen
     let (shared_keys_vec, vk_vec) = keygen.unwrap_or_else(|| keygen_t_n_parties(t, n));
 
@@ -166,7 +166,43 @@ pub fn sign(
 
     // test all signatures are equal
     let first = bls_sig_vec[0];
-    assert!(bls_sig_vec.iter().all(|&item| item == first) == true);
+    assert!(bls_sig_vec.iter().all(|&item| item == first));
     // test the signatures pass verification
-    assert!(shared_keys_vec[0].verify(&bls_sig_vec[0], message) == true)
+    assert!(shared_keys_vec[0].verify(&bls_sig_vec[0], message));
+
+    bls_sig_vec[0]
+}
+
+#[cfg(test)]
+#[test]
+fn another_bls_impl_validates_signature() {
+    use std::io::Cursor;
+
+    use bls_sigs_ref::BLSSigCore;
+    use pairing_plus::bls12_381::{G2Affine, G1, G2};
+    use pairing_plus::hash_to_field::ExpandMsgXmd;
+    use pairing_plus::serdes::SerDes;
+
+    // Run keygen
+    let keygen = keygen_t_n_parties(1, 2);
+    let public_key = keygen.0[0].vk.clone();
+    let mut public_key_bytes = vec![];
+    G2Affine::serialize(&public_key.get_element(), &mut public_key_bytes, true)
+        .expect("serialize to vec should always succeed");
+
+    // Sign message
+    let message = b"KZen";
+    let signature = sign(&message[..], 1, 2, &[0, 1], Some(keygen)).to_bytes(true);
+
+    // Parse public key & signature
+    let public_key =
+        G2::deserialize(&mut Cursor::new(public_key_bytes), true).expect("deserialize public key");
+    let signature =
+        G1::deserialize(&mut Cursor::new(signature), true).expect("deserialize signature");
+
+    // Verify signature
+    let cs = &[1u8];
+    let valid =
+        BLSSigCore::<ExpandMsgXmd<sha2::Sha256>>::core_verify(public_key, signature, message, cs);
+    assert!(valid);
 }
