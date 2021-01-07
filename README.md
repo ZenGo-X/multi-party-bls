@@ -1,14 +1,14 @@
 # multi-party-bls
 
-This is a Rust implementation of {t,n}-threshold BLS.
-* The protocol is an implementation of [threshold GLOW signatures](https://eprint.iacr.org/2020/096.pdf) 
-* We use [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) pairing-friendly elliptic curve
-* The verification of the signatures follow the [ietf standard draft](https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-04), therefore, it should be possible to use this library ONLY in applications that follow the standard as well. e.g. [Algorand](https://github.com/algorand/bls_sigs_ref)
-* Our DKG deviates from GLOW by assuming dishonest majority: in the case the DKG fails, the parties wll detect the faulty parties and will re-run the DKG from start without them.
+Rust implementation of {t,n}-threshold BLS over [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) elliptic curve.
+Currently two protocols are implemented: 
+- Aggregated BLS. Based on the MSP protocol ([BDG18](https://eprint.iacr.org/2018/483.pdf), section 3.1) 
+- Threshold BLS assuming dishonest majority. Based on Threshold GLOW signatures ([GLOW](https://eprint.iacr.org/2020/096.pdf) version 20200806:135847)
+
 
 
 ## Warning
-Do not use this code in production before consulting with us. Feel free to [reach out](mailto:github@kzencorp.com) or join ZenGo X [Telegram](https://t.me/zengo_x).
+Do not use this code in production before consulting with us. Feel free to [reach out](mailto:github@zengo.com) or join ZenGo X [Telegram](https://t.me/zengo_x).
 
 # Development
 
