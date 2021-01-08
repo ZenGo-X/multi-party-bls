@@ -3,8 +3,9 @@ use crate::threshold_bls::party_i::Keys;
 use crate::threshold_bls::party_i::SharedKeys;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
 use curv::elliptic::curves::bls12_381::g2::FE;
-use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use curv::elliptic::curves::bls12_381::{g1::GE as GE1, g2::GE as GE2};
 use curv::elliptic::curves::traits::{ECPoint, ECScalar};
+use pairing_plus::CurveProjective;
 
 #[test]
 fn test_keygen_t1_n2() {
@@ -204,5 +205,34 @@ fn another_bls_impl_validates_signature() {
     let cs = &[1u8];
     let valid =
         BLSSigCore::<ExpandMsgXmd<sha2::Sha256>>::core_verify(public_key, signature, message, cs);
+    assert!(valid);
+}
+
+#[cfg(test)]
+#[test]
+fn we_recognize_signatures_generated_by_ref_impl() {
+    use bls_sigs_ref::BLSSigCore;
+    use pairing_plus::bls12_381::G1;
+    use pairing_plus::hash_to_field::ExpandMsgXmd;
+
+    // Keygen
+    let (secret_key, public_key) = <G1 as BLSSigCore<ExpandMsgXmd<sha2::Sha256>>>::keygen(b"123");
+
+    // Sign message
+    let message = b"KZen";
+    let cs = &[1u8];
+    let signature: G1 =
+        BLSSigCore::<ExpandMsgXmd<sha2::Sha256>>::core_sign(secret_key, message, cs);
+
+    // Verify signature
+    let valid =
+        BLSSigCore::<ExpandMsgXmd<sha2::Sha256>>::core_verify(public_key, signature, message, cs);
+    assert!(valid);
+
+    // Now check that our primitive `BLSSignature` also successfully verifies signature
+    let public_key = GE2::from(public_key.into_affine());
+    let sigma = GE1::from(signature.into_affine());
+    let signature = BLSSignature { sigma };
+    let valid = signature.verify(message, &public_key);
     assert!(valid);
 }
