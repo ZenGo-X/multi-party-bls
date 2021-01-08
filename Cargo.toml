@@ -9,9 +9,16 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
-curv = { git = "https://github.com/ZenGo-X/curv", tag = "v0.5.2"}
+curv = { git = "https://github.com/ZenGo-X/curv", tag = "v0.5.4"}
 zeroize = "0.10"
 rand = "0.7.3"
+pairing-plus = "0.19"
+ff-zeroize = "0.6.3"
+
+[dev-dependencies]
+criterion = "0.3.3"
+bls_sigs_ref = "0.3.0"
+sha2 = "0.8.0"
 
 [lib]
 crate-type = ["lib"]
@@ -24,6 +31,3 @@ dev = []
 name = "criterion"
 harness = false
 required-features = ["dev"]
-
-[dev-dependencies]
-criterion = "0.3.3"
