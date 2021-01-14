@@ -10,11 +10,15 @@ use curv::BigInt;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
+
+/// NIZK required for our threshold BLS: 
 /// This is a special case of the ec ddh proof from Curv:
 /// [https://github.com/ZenGo-X/curv/blob/master/src/cryptographic_primitives/proofs/sigma_ec_ddh.rs]
 /// In which {g1,h1} belong to G1 group and {g2,h2} belong to G2 group.
 /// This special case is possible when |G1| = |G2|. i.e the order of G1 group is equal to the order
-/// of G2 (there is a map between the groups). This is the case for BLS12-381
+/// of G2 (there is a map between the groups). This is the case for BLS12-381.
+/// This is a deviation from the GLOW-BLS protocol that degrades security from strong-unforgeability 
+/// to standard-unforgeability,as defined in "Threshold Signatures, Multisignatures and Blind Signatures Based on the Gap-Diffie-Hellman-Group Signature Scheme"
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ECDDHProof {
