@@ -9,7 +9,7 @@ use curv::elliptic::curves::traits::ECPoint;
 use curv::elliptic::curves::traits::ECScalar;
 use curv::BigInt;
 
-/// This is an implementation of BDG18 [https://eprint.iacr.org/2018/483.pdf]
+/// This is an implementation of BDN18 [https://eprint.iacr.org/2018/483.pdf]
 /// protocol 3.1 (MSP): pairing-based multi-signature with public-key aggregation
 
 #[derive(Copy, PartialEq, Clone, Debug)]
