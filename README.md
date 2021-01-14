@@ -2,7 +2,7 @@
 
 Rust implementation of {t,n}-threshold BLS over [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) elliptic curve.
 Currently two protocols are implemented: 
-- Aggregated BLS. Based on the MSP protocol ([BDG18](https://eprint.iacr.org/2018/483.pdf), section 3.1) 
+- Aggregated BLS. Based on the MSP protocol ([BDN18](https://eprint.iacr.org/2018/483.pdf), section 3.1) 
 - Threshold BLS assuming dishonest majority. Based on Threshold GLOW signatures ([GLOW20](https://eprint.iacr.org/2020/096.pdf) version 20200806:135847)
 
 
