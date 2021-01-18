@@ -1,7 +1,7 @@
 [package]
 name = "bls"
 version = "0.1.1"
-authors = ["Doron <doronz@zengo.com>", "Omer <omer@zengo.com>"]
+authors = ["Doron <doronz@zengo.com>", "Omer <omer@zengo.com>", "Denis <dsurv@yandex.ru>"]
 description = "threshold BLS library"
 edition = "2018"
 
@@ -14,6 +14,7 @@ zeroize = "0.10"
 rand = "0.7.3"
 pairing-plus = "0.19"
 ff-zeroize = "0.6.3"
+round-based = { git = "https://github.com/ZenGo-X/round-based-protocol", branch = "develop", features = [] }
 
 [dev-dependencies]
 criterion = "0.3.3"
