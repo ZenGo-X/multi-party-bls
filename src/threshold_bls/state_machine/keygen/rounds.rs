@@ -186,6 +186,7 @@ impl Round3 {
             shared_keys,
             own_dlog_proof: dlog_proof,
 
+            party_i: self.party_i,
             t: self.t,
             n: self.n,
         })
@@ -202,6 +203,7 @@ pub struct Round4 {
     shared_keys: party_i::SharedKeys,
     own_dlog_proof: DLogProof<GE2>,
 
+    party_i: u16,
     t: u16,
     n: u16,
 }
@@ -216,9 +218,14 @@ impl Round4 {
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
             .map_err(Error::Round4VerifyDLogProof)?;
+        let vk_vec = dlog_proofs.into_iter().map(|p| p.pk).collect();
         Ok(LocalKey {
             shared_keys: self.shared_keys,
-            pk,
+            vk_vec,
+
+            i: self.party_i,
+            t: self.t,
+            n: self.n,
         })
     }
     pub fn is_expensive(&self) -> bool {
@@ -241,7 +248,11 @@ pub enum R {
 
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
-    pub(in crate::threshold_bls::state_machine) pk: GE2,
+    pub(in crate::threshold_bls::state_machine) vk_vec: Vec<GE2>,
+
+    pub(in crate::threshold_bls::state_machine) i: u16,
+    pub(in crate::threshold_bls::state_machine) t: u16,
+    pub(in crate::threshold_bls::state_machine) n: u16,
 }
 
 // Messages
