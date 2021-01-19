@@ -60,7 +60,7 @@ pub struct SharedKeys {
     pub sk_i: FE2,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct PartialSignature {
     pub index: usize,
     pub sigma_i: GE1,

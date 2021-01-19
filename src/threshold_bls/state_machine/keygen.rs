@@ -1,5 +1,6 @@
 use std::fmt;
 use std::mem::replace;
+use std::time::Duration;
 
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
@@ -13,7 +14,6 @@ use crate::threshold_bls::party_i;
 mod rounds;
 pub use rounds::{Error, LocalKey, M};
 use rounds::{Result, Round0, Round1, Round2, Round3, Round4, R};
-use std::time::Duration;
 
 pub struct Keygen {
     round: R,
@@ -30,8 +30,27 @@ pub struct Keygen {
 }
 
 impl Keygen {
-    pub fn new(i: u16, t: u16, n: u16) -> Self {
-        Self {
+    /// Constructs a party of keygen protocol
+    ///
+    /// Takes party index `i` (in range `[1; n]`), threshold value `t`, and total number of
+    /// parties `n`. Party index identifies this party in the protocol, so it must be guaranteed
+    /// to be unique.
+    ///
+    /// Returns error if:
+    /// * `n` is less than 2, returns [Error::TooFewParties]
+    /// * `t` is not in range `[1; n-1]`, returns [Error::InvalidThreshold]
+    /// * `i` is not in range `[1; n]`, returns [Error::InvalidPartyIndex]
+    pub fn new(i: u16, t: u16, n: u16) -> Result<Self> {
+        if n < 2 {
+            return Err(Error::TooFewParties);
+        }
+        if t == 0 || t >= n {
+            return Err(Error::InvalidThreshold);
+        }
+        if i == 0 || i > n {
+            return Err(Error::InvalidPartyIndex);
+        }
+        let mut state = Self {
             round: R::Round0(Round0 { party_i: i, t, n }),
 
             msgs1: Some(Round1::expects_messages(i, n)),
@@ -43,7 +62,10 @@ impl Keygen {
 
             party_i: i,
             party_n: n,
-        }
+        };
+
+        state.proceed_round(false)?;
+        Ok(state)
     }
 
     /// Proceeds round state if it received enough messages and if it's cheap to compute or
@@ -321,7 +343,7 @@ mod test {
         let mut simulation = Simulation::new();
 
         for i in 1..=n {
-            simulation.add_party(Keygen::new(i, t, n));
+            simulation.add_party(Keygen::new(i, t, n).unwrap());
         }
 
         simulation.run().unwrap()

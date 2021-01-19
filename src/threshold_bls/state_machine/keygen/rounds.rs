@@ -214,7 +214,6 @@ impl Round4 {
             threshold: self.t.into(),
             share_count: self.n.into(),
         };
-        let pk = self.own_dlog_proof.pk.clone();
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
             .map_err(Error::Round4VerifyDLogProof)?;
@@ -246,6 +245,7 @@ pub enum R {
     Gone,
 }
 
+#[derive(Clone)]
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
     pub(in crate::threshold_bls::state_machine) vk_vec: Vec<GE2>,
@@ -275,9 +275,19 @@ pub enum Error {
     Round3VerifyVssConstruct(crate::Error),
     Round4VerifyDLogProof(crate::Error),
 
+    /// Too few parties (`n < 2`)
+    TooFewParties,
+    /// Threshold value `t` is not in range `[1; n-1]`
+    InvalidThreshold,
+    /// Party index `i` is not in range `[1; n]`
+    InvalidPartyIndex,
+
     HandleMessage(containers::StoreErr),
     RetrieveRoundMessages(containers::StoreErr),
-    ReceivedOutOfOrderMessage { current_round: u16, msg_round: u16 },
+    ReceivedOutOfOrderMessage {
+        current_round: u16,
+        msg_round: u16,
+    },
     DoublePickResult,
 }
 
