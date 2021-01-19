@@ -20,6 +20,7 @@ round-based = { git = "https://github.com/ZenGo-X/round-based-protocol", branch 
 criterion = "0.3.3"
 bls_sigs_ref = "0.3.0"
 sha2 = "0.8.0"
+round-based = { git = "https://github.com/ZenGo-X/round-based-protocol", branch = "develop", features = ["dev"] }
 
 [lib]
 crate-type = ["lib"]

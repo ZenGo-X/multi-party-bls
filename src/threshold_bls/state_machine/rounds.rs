@@ -1,26 +1,23 @@
-use std::cmp::Ordering;
-
+use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{
     ShamirSecretSharing, VerifiableSS,
 };
 use curv::elliptic::curves::bls12_381::g2::FE as FE2;
-use curv::elliptic::curves::bls12_381::{g1::GE as GE1, g2::GE as GE2};
-use round_based::containers::{BroadcastMsgs, P2PMsgs};
+use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
 use round_based::{IsCritical, Msg};
 
 use crate::threshold_bls::party_i;
-use crate::threshold_bls::party_i::SharedKeys;
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 
 pub struct Round0 {
-    party_i: u16,
-    t: u16,
-    n: u16,
+    pub party_i: u16,
+    pub t: u16,
+    pub n: u16,
 }
 
 impl Round0 {
     pub fn proceed(self, output: &mut Vec<Msg<M>>) -> Result<Round1> {
-        let keys = party_i::Keys::phase1_create(self.party_i.into());
+        let keys = party_i::Keys::phase1_create(usize::from(self.party_i) - 1);
         let (comm, decom) = keys.phase1_broadcast();
         output.push(Msg {
             sender: self.party_i,
@@ -35,6 +32,9 @@ impl Round0 {
             t: self.t,
             n: self.n,
         })
+    }
+    pub fn is_expensive(&self) -> bool {
+        true
     }
 }
 
@@ -69,6 +69,12 @@ impl Round1 {
             n: self.n,
         })
     }
+    pub fn is_expensive(&self) -> bool {
+        true
+    }
+    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<party_i::KeyGenComm>> {
+        containers::BroadcastMsgsStore::new(i, n)
+    }
 }
 
 pub struct Round2 {
@@ -97,15 +103,13 @@ impl Round2 {
             .phase1_verify_com_phase2_distribute(&params, &received_decom, &self.received_comm)
             .map_err(Error::Round2VerifyCommitments)?;
         for (i, share) in secret_shares.iter().enumerate() {
-            let i = match self.party_i.cmp(&(i as u16 + 1)) {
-                Ordering::Less => i + 1,
-                Ordering::Equal => continue,
-                Ordering::Greater => i + 2,
-            };
+            if i + 1 == usize::from(self.party_i) {
+                continue;
+            }
 
             output.push(Msg {
                 sender: self.party_i,
-                receiver: Some(i as u16),
+                receiver: Some(i as u16 + 1),
                 body: M::Round3((vss_scheme.clone(), share.clone())),
             })
         }
@@ -123,6 +127,12 @@ impl Round2 {
             t: self.t,
             n: self.n,
         })
+    }
+    pub fn is_expensive(&self) -> bool {
+        true
+    }
+    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<party_i::KeyGenDecom>> {
+        containers::BroadcastMsgsStore::new(i, n)
     }
 }
 
@@ -176,10 +186,15 @@ impl Round3 {
             shared_keys,
             own_dlog_proof: dlog_proof,
 
-            party_i: self.party_i,
             t: self.t,
             n: self.n,
         })
+    }
+    pub fn is_expensive(&self) -> bool {
+        true
+    }
+    pub fn expects_messages(i: u16, n: u16) -> Store<P2PMsgs<(VerifiableSS<GE2>, FE2)>> {
+        containers::P2PMsgsStore::new(i, n)
     }
 }
 
@@ -187,13 +202,12 @@ pub struct Round4 {
     shared_keys: party_i::SharedKeys,
     own_dlog_proof: DLogProof<GE2>,
 
-    party_i: u16,
     t: u16,
     n: u16,
 }
 
 impl Round4 {
-    pub fn proceed(self, input: BroadcastMsgs<DLogProof<GE2>>) -> Result<Key> {
+    pub fn proceed(self, input: BroadcastMsgs<DLogProof<GE2>>) -> Result<LocalKey> {
         let params = ShamirSecretSharing {
             threshold: self.t.into(),
             share_count: self.n.into(),
@@ -202,20 +216,37 @@ impl Round4 {
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
             .map_err(Error::Round4VerifyDLogProof)?;
-        Ok(Key {
+        Ok(LocalKey {
             shared_keys: self.shared_keys,
             pk,
         })
     }
+    pub fn is_expensive(&self) -> bool {
+        true
+    }
+    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<DLogProof<GE2>>> {
+        containers::BroadcastMsgsStore::new(i, n)
+    }
 }
 
-pub struct Key {
-    shared_keys: SharedKeys,
-    pk: GE2,
+pub enum R {
+    Round0(Round0),
+    Round1(Round1),
+    Round2(Round2),
+    Round3(Round3),
+    Round4(Round4),
+    Final(LocalKey),
+    Gone,
+}
+
+pub struct LocalKey {
+    pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
+    pub(in crate::threshold_bls::state_machine) pk: GE2,
 }
 
 // Messages
 
+#[derive(Clone, Debug)]
 pub enum M {
     Round1(party_i::KeyGenComm),
     Round2(party_i::KeyGenDecom),
@@ -225,12 +256,18 @@ pub enum M {
 
 // Errors
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
 pub enum Error {
     Round2VerifyCommitments(crate::Error),
     Round3VerifyVssConstruct(crate::Error),
     Round4VerifyDLogProof(crate::Error),
+
+    HandleMessage(containers::StoreErr),
+    RetrieveRoundMessages(containers::StoreErr),
+    ReceivedOutOfOrderMessage { current_round: u16, msg_round: u16 },
+    DoublePickResult,
 }
 
 impl IsCritical for Error {
