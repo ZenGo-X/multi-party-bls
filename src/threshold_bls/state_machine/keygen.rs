@@ -6,14 +6,17 @@ use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::elliptic::curves::bls12_381::g2::FE as FE2;
 use curv::elliptic::curves::bls12_381::g2::GE as GE2;
-use round_based::containers::*;
-use round_based::{Msg, StateMachine};
+use round_based::containers::{
+    push::{Push, PushExt},
+    *,
+};
+use round_based::{IsCritical, Msg, StateMachine};
 
 use crate::threshold_bls::party_i;
 
 mod rounds;
-pub use rounds::{Error, LocalKey, M};
-use rounds::{Result, Round0, Round1, Round2, Round3, Round4, R};
+pub use rounds::{LocalKey, ProceedError};
+use rounds::{Round0, Round1, Round2, Round3, Round4};
 
 pub struct Keygen {
     round: R,
@@ -23,7 +26,7 @@ pub struct Keygen {
     msgs3: Option<Store<P2PMsgs<(VerifiableSS<GE2>, FE2)>>>,
     msgs4: Option<Store<BroadcastMsgs<DLogProof<GE2>>>>,
 
-    msgs_queue: Vec<Msg<M>>,
+    msgs_queue: Vec<Msg<ProtocolMessage>>,
 
     party_i: u16,
     party_n: u16,
@@ -68,6 +71,13 @@ impl Keygen {
         Ok(state)
     }
 
+    fn gmap_queue<'a, T, F>(&'a mut self, mut f: F) -> impl Push<Msg<T>> + 'a
+    where
+        F: FnMut(T) -> M + 'a,
+    {
+        (&mut self.msgs_queue).map(move |m: Msg<T>| m.map_body(|m| ProtocolMessage(f(m))))
+    }
+
     /// Proceeds round state if it received enough messages and if it's cheap to compute or
     /// `may_block == true`
     fn proceed_round(&mut self, may_block: bool) -> Result<()> {
@@ -79,7 +89,10 @@ impl Keygen {
         let next_state: R;
         let try_again: bool = match replace(&mut self.round, R::Gone) {
             R::Round0(round) if !round.is_expensive() || may_block => {
-                next_state = round.proceed(&mut self.msgs_queue).map(R::Round1)?;
+                next_state = round
+                    .proceed(self.gmap_queue(M::Round1))
+                    .map(R::Round1)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round0(_) => {
@@ -87,9 +100,14 @@ impl Keygen {
                 false
             }
             R::Round1(round) if !store1_wants_more && (!round.is_expensive() || may_block) => {
-                let store = self.msgs1.take().expect("store gone before round complete");
-                let msgs = store.finish().map_err(Error::RetrieveRoundMessages)?;
-                next_state = round.proceed(msgs, &mut self.msgs_queue).map(R::Round2)?;
+                let store = self.msgs1.take().ok_or(InternalError::StoreGone)?;
+                let msgs = store
+                    .finish()
+                    .map_err(InternalError::RetrieveRoundMessages)?;
+                next_state = round
+                    .proceed(msgs, self.gmap_queue(M::Round2))
+                    .map(R::Round2)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round1(_) => {
@@ -97,9 +115,14 @@ impl Keygen {
                 false
             }
             R::Round2(round) if !store2_wants_more && (!round.is_expensive() || may_block) => {
-                let store = self.msgs2.take().expect("store gone before round complete");
-                let msgs = store.finish().map_err(Error::RetrieveRoundMessages)?;
-                next_state = round.proceed(msgs, &mut self.msgs_queue).map(R::Round3)?;
+                let store = self.msgs2.take().ok_or(InternalError::StoreGone)?;
+                let msgs = store
+                    .finish()
+                    .map_err(InternalError::RetrieveRoundMessages)?;
+                next_state = round
+                    .proceed(msgs, self.gmap_queue(M::Round3))
+                    .map(R::Round3)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round2(_) => {
@@ -107,9 +130,14 @@ impl Keygen {
                 false
             }
             R::Round3(round) if !store3_wants_more && (!round.is_expensive() || may_block) => {
-                let store = self.msgs3.take().expect("store gone before round complete");
-                let msgs = store.finish().map_err(Error::RetrieveRoundMessages)?;
-                next_state = round.proceed(msgs, &mut self.msgs_queue).map(R::Round4)?;
+                let store = self.msgs3.take().ok_or(InternalError::StoreGone)?;
+                let msgs = store
+                    .finish()
+                    .map_err(InternalError::RetrieveRoundMessages)?;
+                next_state = round
+                    .proceed(msgs, self.gmap_queue(M::Round4))
+                    .map(R::Round4)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round3(_) => {
@@ -117,9 +145,14 @@ impl Keygen {
                 false
             }
             R::Round4(round) if !store4_wants_more && (!round.is_expensive() || may_block) => {
-                let store = self.msgs4.take().expect("store gone before round complete");
-                let msgs = store.finish().map_err(Error::RetrieveRoundMessages)?;
-                next_state = round.proceed(msgs).map(R::Final)?;
+                let store = self.msgs4.take().ok_or(InternalError::StoreGone)?;
+                let msgs = store
+                    .finish()
+                    .map_err(InternalError::RetrieveRoundMessages)?;
+                next_state = round
+                    .proceed(msgs)
+                    .map(R::Final)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round4(_) => {
@@ -142,7 +175,7 @@ impl Keygen {
 }
 
 impl StateMachine for Keygen {
-    type MessageBody = M;
+    type MessageBody = ProtocolMessage;
     type Err = Error;
     type Output = LocalKey;
 
@@ -150,7 +183,7 @@ impl StateMachine for Keygen {
         let current_round = self.current_round();
 
         match msg.body {
-            M::Round1(m) => {
+            ProtocolMessage(M::Round1(m)) => {
                 let store = self
                     .msgs1
                     .as_mut()
@@ -167,7 +200,7 @@ impl StateMachine for Keygen {
                     .map_err(Error::HandleMessage)?;
                 self.proceed_round(false)
             }
-            M::Round2(m) => {
+            ProtocolMessage(M::Round2(m)) => {
                 let store = self
                     .msgs2
                     .as_mut()
@@ -184,7 +217,7 @@ impl StateMachine for Keygen {
                     .map_err(Error::HandleMessage)?;
                 self.proceed_round(false)
             }
-            M::Round3(m) => {
+            ProtocolMessage(M::Round3(m)) => {
                 let store = self
                     .msgs3
                     .as_mut()
@@ -201,7 +234,7 @@ impl StateMachine for Keygen {
                     .map_err(Error::HandleMessage)?;
                 self.proceed_round(false)
             }
-            M::Round4(m) => {
+            ProtocolMessage(M::Round4(m)) => {
                 let store = self
                     .msgs4
                     .as_mut()
@@ -331,6 +364,90 @@ impl fmt::Debug for Keygen {
             msgs4,
             self.msgs_queue.len()
         )
+    }
+}
+
+// Rounds
+
+enum R {
+    Round0(Round0),
+    Round1(Round1),
+    Round2(Round2),
+    Round3(Round3),
+    Round4(Round4),
+    Final(LocalKey),
+    Gone,
+}
+
+// Messages
+
+/// Protocol message which parties send on wire
+///
+/// Hides actual messages structure so it could be changed without breaking semver policy.
+#[derive(Debug, Clone)]
+pub struct ProtocolMessage(M);
+
+#[derive(Clone, Debug)]
+enum M {
+    Round1(Msg1),
+    Round2(Msg2),
+    Round3(Msg3),
+    Round4(Msg4),
+}
+
+type Msg1 = party_i::KeyGenComm;
+type Msg2 = party_i::KeyGenDecom;
+type Msg3 = (VerifiableSS<GE2>, FE2);
+type Msg4 = DLogProof<GE2>;
+
+// Error
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Error {
+    /// Proceeding round resulted in error
+    ProceedRound(ProceedError),
+
+    /// Too few parties (`n < 2`)
+    TooFewParties,
+    /// Threshold value `t` is not in range `[1; n-1]`
+    InvalidThreshold,
+    /// Party index `i` is not in range `[1; n]`
+    InvalidPartyIndex,
+
+    /// Received message didn't pass pre-validation
+    HandleMessage(StoreErr),
+    /// It's an internal error which should never happen
+    /// Received message which we didn't expect to receive now (e.g. message from previous round)
+    ReceivedOutOfOrderMessage { current_round: u16, msg_round: u16 },
+    /// [Keygen::pick_output] called twice
+    DoublePickResult,
+
+    /// Some internal assertions were failed, which is a bug
+    InternalError(InternalError),
+}
+
+impl From<InternalError> for Error {
+    fn from(err: InternalError) -> Self {
+        Self::InternalError(err)
+    }
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum InternalError {
+    /// [Messages store](MessageStore) reported that it received all messages it wanted to receive,
+    /// but refused to return message container
+    RetrieveRoundMessages(StoreErr),
+    #[doc(hidden)]
+    StoreGone,
+}
+
+impl IsCritical for Error {
+    fn is_critical(&self) -> bool {
+        true
     }
 }
 

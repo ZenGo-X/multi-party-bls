@@ -4,8 +4,9 @@ use curv::cryptographic_primitives::secret_sharing::feldman_vss::{
 };
 use curv::elliptic::curves::bls12_381::g2::FE as FE2;
 use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
-use round_based::{IsCritical, Msg};
+use round_based::Msg;
 
 use crate::threshold_bls::party_i;
 
@@ -16,13 +17,16 @@ pub struct Round0 {
 }
 
 impl Round0 {
-    pub fn proceed(self, output: &mut Vec<Msg<M>>) -> Result<Round1> {
+    pub fn proceed<O>(self, mut output: O) -> Result<Round1>
+    where
+        O: Push<Msg<party_i::KeyGenComm>>,
+    {
         let keys = party_i::Keys::phase1_create(usize::from(self.party_i) - 1);
         let (comm, decom) = keys.phase1_broadcast();
         output.push(Msg {
             sender: self.party_i,
             receiver: None,
-            body: M::Round1(comm.clone()),
+            body: comm.clone(),
         });
         Ok(Round1 {
             keys,
@@ -49,15 +53,18 @@ pub struct Round1 {
 }
 
 impl Round1 {
-    pub fn proceed(
+    pub fn proceed<O>(
         self,
         input: BroadcastMsgs<party_i::KeyGenComm>,
-        output: &mut Vec<Msg<M>>,
-    ) -> Result<Round2> {
+        mut output: O,
+    ) -> Result<Round2>
+    where
+        O: Push<Msg<party_i::KeyGenDecom>>,
+    {
         output.push(Msg {
             sender: self.party_i,
             receiver: None,
-            body: M::Round2(self.decom.clone()),
+            body: self.decom.clone(),
         });
         Ok(Round2 {
             keys: self.keys,
@@ -88,11 +95,14 @@ pub struct Round2 {
 }
 
 impl Round2 {
-    pub fn proceed(
+    pub fn proceed<O>(
         self,
         input: BroadcastMsgs<party_i::KeyGenDecom>,
-        output: &mut Vec<Msg<M>>,
-    ) -> Result<Round3> {
+        mut output: O,
+    ) -> Result<Round3>
+    where
+        O: Push<Msg<(VerifiableSS<GE2>, FE2)>>,
+    {
         let params = ShamirSecretSharing {
             threshold: self.t.into(),
             share_count: self.n.into(),
@@ -101,7 +111,7 @@ impl Round2 {
         let (vss_scheme, secret_shares, index) = self
             .keys
             .phase1_verify_com_phase2_distribute(&params, &received_decom, &self.received_comm)
-            .map_err(Error::Round2VerifyCommitments)?;
+            .map_err(ProceedError::Round2VerifyCommitments)?;
         for (i, share) in secret_shares.iter().enumerate() {
             if i + 1 == usize::from(self.party_i) {
                 continue;
@@ -110,7 +120,7 @@ impl Round2 {
             output.push(Msg {
                 sender: self.party_i,
                 receiver: Some(i as u16 + 1),
-                body: M::Round3((vss_scheme.clone(), share.clone())),
+                body: (vss_scheme.clone(), share.clone()),
             })
         }
 
@@ -151,11 +161,14 @@ pub struct Round3 {
 }
 
 impl Round3 {
-    pub fn proceed(
+    pub fn proceed<O>(
         self,
         input: P2PMsgs<(VerifiableSS<GE2>, FE2)>,
-        output: &mut Vec<Msg<M>>,
-    ) -> Result<Round4> {
+        mut output: O,
+    ) -> Result<Round4>
+    where
+        O: Push<Msg<DLogProof<GE2>>>,
+    {
         let params = ShamirSecretSharing {
             threshold: self.t.into(),
             share_count: self.n.into(),
@@ -174,12 +187,12 @@ impl Round3 {
                 &vss_schemes,
                 &(self.index + 1),
             )
-            .map_err(Error::Round3VerifyVssConstruct)?;
+            .map_err(ProceedError::Round3VerifyVssConstruct)?;
 
         output.push(Msg {
             sender: self.party_i,
             receiver: None,
-            body: M::Round4(dlog_proof.clone()),
+            body: dlog_proof.clone(),
         });
 
         Ok(Round4 {
@@ -216,7 +229,7 @@ impl Round4 {
         };
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
-            .map_err(Error::Round4VerifyDLogProof)?;
+            .map_err(ProceedError::Round4VerifyDLogProof)?;
         let vk_vec = dlog_proofs.into_iter().map(|p| p.pk).collect();
         Ok(LocalKey {
             shared_keys: self.shared_keys,
@@ -235,16 +248,6 @@ impl Round4 {
     }
 }
 
-pub enum R {
-    Round0(Round0),
-    Round1(Round1),
-    Round2(Round2),
-    Round3(Round3),
-    Round4(Round4),
-    Final(LocalKey),
-    Gone,
-}
-
 #[derive(Clone)]
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
@@ -255,44 +258,13 @@ pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) n: u16,
 }
 
-// Messages
-
-#[derive(Clone, Debug)]
-pub enum M {
-    Round1(party_i::KeyGenComm),
-    Round2(party_i::KeyGenDecom),
-    Round3((VerifiableSS<GE2>, FE2)),
-    Round4(DLogProof<GE2>),
-}
-
 // Errors
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, ProceedError>;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum ProceedError {
     Round2VerifyCommitments(crate::Error),
     Round3VerifyVssConstruct(crate::Error),
     Round4VerifyDLogProof(crate::Error),
-
-    /// Too few parties (`n < 2`)
-    TooFewParties,
-    /// Threshold value `t` is not in range `[1; n-1]`
-    InvalidThreshold,
-    /// Party index `i` is not in range `[1; n]`
-    InvalidPartyIndex,
-
-    HandleMessage(containers::StoreErr),
-    RetrieveRoundMessages(containers::StoreErr),
-    ReceivedOutOfOrderMessage {
-        current_round: u16,
-        msg_round: u16,
-    },
-    DoublePickResult,
-}
-
-impl IsCritical for Error {
-    fn is_critical(&self) -> bool {
-        true
-    }
 }
