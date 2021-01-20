@@ -3,23 +3,27 @@ use std::mem::replace;
 use std::time::Duration;
 
 use curv::elliptic::curves::bls12_381::g1::GE as GE1;
-use round_based::containers::*;
-use round_based::{Msg, StateMachine};
+use round_based::containers::{
+    push::{Push, PushExt},
+    *,
+};
+use round_based::{IsCritical, Msg, StateMachine};
+use thiserror::Error;
 
 use crate::basic_bls::BLSSignature;
 use crate::threshold_bls::party_i;
 use crate::threshold_bls::state_machine::keygen::LocalKey;
 
 mod rounds;
-pub use rounds::{Error, M};
-use rounds::{Result, Round0, Round1, R};
+pub use rounds::ProceedError;
+use rounds::{Round0, Round1};
 
 pub struct Sign {
     round: R,
 
     msgs1: Option<Store<BroadcastMsgs<(u16, party_i::PartialSignature)>>>,
 
-    msgs_queue: Vec<Msg<M>>,
+    msgs_queue: Vec<Msg<ProtocolMessage>>,
 
     party_i: u16,
     party_n: u16,
@@ -67,6 +71,13 @@ impl Sign {
         Ok(state)
     }
 
+    fn gmap_queue<'a, T, F>(&'a mut self, mut f: F) -> impl Push<Msg<T>> + 'a
+    where
+        F: FnMut(T) -> M + 'a,
+    {
+        (&mut self.msgs_queue).gmap(move |m: Msg<T>| m.map_body(|m| ProtocolMessage(f(m))))
+    }
+
     /// Proceeds round state if it received enough messages and if it's cheap to compute or
     /// `may_block == true`
     fn proceed_round(&mut self, may_block: bool) -> Result<()> {
@@ -75,7 +86,10 @@ impl Sign {
         let next_state: R;
         let try_again: bool = match replace(&mut self.round, R::Gone) {
             R::Round0(round) if !round.is_expensive() || may_block => {
-                next_state = round.proceed(&mut self.msgs_queue).map(R::Round1)?;
+                next_state = round
+                    .proceed(self.gmap_queue(M::Round1))
+                    .map(R::Round1)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round0(_) => {
@@ -84,9 +98,14 @@ impl Sign {
             }
 
             R::Round1(round) if !store1_wants_more && (!round.is_expensive() || may_block) => {
-                let store = self.msgs1.take().expect("store gone before round complete");
-                let msgs = store.finish().map_err(Error::RetrieveRoundMessages)?;
-                next_state = round.proceed(msgs).map(R::Final)?;
+                let store = self.msgs1.take().ok_or(InternalError::StoreGone)?;
+                let msgs = store
+                    .finish()
+                    .map_err(InternalError::RetrieveRoundMessages)?;
+                next_state = round
+                    .proceed(msgs)
+                    .map(R::Final)
+                    .map_err(Error::ProceedRound)?;
                 true
             }
             s @ R::Round1(_) => {
@@ -110,7 +129,7 @@ impl Sign {
 }
 
 impl StateMachine for Sign {
-    type MessageBody = M;
+    type MessageBody = ProtocolMessage;
     type Err = Error;
     type Output = (GE1, BLSSignature);
 
@@ -118,7 +137,7 @@ impl StateMachine for Sign {
         let current_round = self.current_round();
 
         match msg.body {
-            M::Round1(m) => {
+            ProtocolMessage(M::Round1(m)) => {
                 let store = self
                     .msgs1
                     .as_mut()
@@ -202,6 +221,65 @@ impl StateMachine for Sign {
     }
 }
 
+// Error
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    /// Proceeding round resulted in error
+    #[error("proceed round: {0}")]
+    ProceedRound(ProceedError),
+
+    /// Too few parties involved in protocol (less than `threshold+1`), signing is not possible
+    #[error("at least t+1 parties must be involved in protocol")]
+    TooFewParties,
+    /// Number of parties involved in signing is more than number of parties holding a key
+    #[error("number of parties involved in signing is more than number of parties holding a key")]
+    TooManyParties,
+    /// Party index is not in range `[1; n]`
+    #[error("party index is not in range [1; n]")]
+    InvalidPartyIndex,
+
+    /// Received message didn't pass pre-validation
+    #[error("received message didn't pass pre-validation: {0}")]
+    HandleMessage(#[source] StoreErr),
+    /// Received message which we didn't expect to receive now (e.g. message from previous round)
+    #[error(
+        "didn't expect to receive message from round {msg_round} (being at round {current_round})"
+    )]
+    ReceivedOutOfOrderMessage { current_round: u16, msg_round: u16 },
+    /// [Sign::pick_output] called twice
+    #[error("pick_output called twice")]
+    DoublePickResult,
+
+    /// Some internal assertions were failed, which is a bug
+    #[error("internal error: {0:?}")]
+    InternalError(InternalError),
+}
+
+impl IsCritical for Error {
+    fn is_critical(&self) -> bool {
+        true
+    }
+}
+
+impl From<InternalError> for Error {
+    fn from(err: InternalError) -> Self {
+        Self::InternalError(err)
+    }
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum InternalError {
+    /// [Messages store](MessageStore) reported that it received all messages it wanted to receive,
+    /// but refused to return message container
+    RetrieveRoundMessages(StoreErr),
+    #[doc(hidden)]
+    StoreGone,
+}
+
 impl fmt::Debug for Sign {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let current_round = match &self.round {
@@ -222,6 +300,28 @@ impl fmt::Debug for Sign {
             self.msgs_queue.len()
         )
     }
+}
+
+// Rounds
+
+enum R {
+    Round0(Round0),
+    Round1(Round1),
+    Final((GE1, BLSSignature)),
+    Gone,
+}
+
+// Messages
+
+/// Protocol message which parties send on wire
+///
+/// Hides actual messages structure so it could be changed without breaking semver policy.
+#[derive(Clone, Debug)]
+pub struct ProtocolMessage(M);
+
+#[derive(Debug, Clone)]
+enum M {
+    Round1((u16, party_i::PartialSignature)),
 }
 
 #[cfg(test)]

@@ -390,16 +390,11 @@ pub struct ProtocolMessage(M);
 
 #[derive(Clone, Debug)]
 enum M {
-    Round1(Msg1),
-    Round2(Msg2),
-    Round3(Msg3),
-    Round4(Msg4),
+    Round1(party_i::KeyGenComm),
+    Round2(party_i::KeyGenDecom),
+    Round3((VerifiableSS<GE2>, FE2)),
+    Round4(DLogProof<GE2>),
 }
-
-type Msg1 = party_i::KeyGenComm;
-type Msg2 = party_i::KeyGenDecom;
-type Msg3 = (VerifiableSS<GE2>, FE2);
-type Msg4 = DLogProof<GE2>;
 
 // Error
 
@@ -439,6 +434,12 @@ pub enum Error {
     InternalError(InternalError),
 }
 
+impl IsCritical for Error {
+    fn is_critical(&self) -> bool {
+        true
+    }
+}
+
 impl From<InternalError> for Error {
     fn from(err: InternalError) -> Self {
         Self::InternalError(err)
@@ -453,12 +454,6 @@ pub enum InternalError {
     RetrieveRoundMessages(StoreErr),
     #[doc(hidden)]
     StoreGone,
-}
-
-impl IsCritical for Error {
-    fn is_critical(&self) -> bool {
-        true
-    }
 }
 
 #[cfg(test)]
