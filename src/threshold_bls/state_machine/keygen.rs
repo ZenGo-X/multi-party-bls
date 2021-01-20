@@ -1,3 +1,5 @@
+//! High-level keygen protocol implementation
+
 use std::fmt;
 use std::mem::replace;
 use std::time::Duration;
@@ -19,6 +21,10 @@ mod rounds;
 pub use rounds::{LocalKey, ProceedError};
 use rounds::{Round0, Round1, Round2, Round3, Round4};
 
+/// Keygen protocol state machine
+///
+/// Successfully completed keygen protocol produces [LocalKey] that can be used in further
+/// [signing](super::sign::Sign) protocol.
 pub struct Keygen {
     round: R,
 
@@ -400,10 +406,11 @@ enum M {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Error type of keygen protocol
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// Proceeding round resulted in error
+    /// Round proceeding resulted in error
     #[error("proceed round: {0}")]
     ProceedRound(#[source] ProceedError),
 
@@ -430,6 +437,7 @@ pub enum Error {
     DoublePickOutput,
 
     /// Some internal assertions were failed, which is a bug
+    #[doc(hidden)]
     #[error("internal error: {0:?}")]
     InternalError(InternalError),
 }
@@ -446,14 +454,17 @@ impl From<InternalError> for Error {
     }
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum InternalError {
-    /// [Messages store](MessageStore) reported that it received all messages it wanted to receive,
-    /// but refused to return message container
-    RetrieveRoundMessages(StoreErr),
-    #[doc(hidden)]
-    StoreGone,
+use private::InternalError;
+mod private {
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum InternalError {
+        /// [Messages store](super::MessageStore) reported that it received all messages it wanted to receive,
+        /// but refused to return message container
+        RetrieveRoundMessages(super::StoreErr),
+        #[doc(hidden)]
+        StoreGone,
+    }
 }
 
 #[cfg(test)]

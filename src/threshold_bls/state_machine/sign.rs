@@ -1,3 +1,5 @@
+//! High-level signing protocol implementation
+
 use std::fmt;
 use std::mem::replace;
 use std::time::Duration;
@@ -18,6 +20,10 @@ mod rounds;
 pub use rounds::ProceedError;
 use rounds::{Round0, Round1};
 
+/// Signing protocol state machine
+///
+/// Successfully completed keygen protocol produces [GE1] representing a message on g1 curve and
+/// [BLSSignature]
 pub struct Sign {
     round: R,
 
@@ -225,9 +231,10 @@ impl StateMachine for Sign {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Error type of signing protocol
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Proceeding round resulted in error
+    /// Round proceeding resulted in error
     #[error("proceed round: {0}")]
     ProceedRound(ProceedError),
 
@@ -254,6 +261,7 @@ pub enum Error {
     DoublePickResult,
 
     /// Some internal assertions were failed, which is a bug
+    #[doc(hidding)]
     #[error("internal error: {0:?}")]
     InternalError(InternalError),
 }
@@ -270,14 +278,17 @@ impl From<InternalError> for Error {
     }
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum InternalError {
-    /// [Messages store](MessageStore) reported that it received all messages it wanted to receive,
-    /// but refused to return message container
-    RetrieveRoundMessages(StoreErr),
-    #[doc(hidden)]
-    StoreGone,
+use private::InternalError;
+mod private {
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum InternalError {
+        /// [Messages store](super::MessageStore) reported that it received all messages it wanted to receive,
+        /// but refused to return message container
+        RetrieveRoundMessages(super::StoreErr),
+        #[doc(hidden)]
+        StoreGone,
+    }
 }
 
 impl fmt::Debug for Sign {
@@ -329,7 +340,7 @@ mod test {
     use round_based::dev::Simulation;
 
     use super::*;
-    use crate::threshold_bls::state_machine::Keygen;
+    use crate::threshold_bls::state_machine::keygen::Keygen;
 
     fn simulate_sign(msg: &[u8], s: &[u16], t: u16, n: u16) {
         // Keygen

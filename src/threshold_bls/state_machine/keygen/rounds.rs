@@ -249,6 +249,7 @@ impl Round4 {
     }
 }
 
+/// Local secret obtained by party after [keygen](super::Keygen) protocol is completed
 #[derive(Clone)]
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
@@ -259,10 +260,21 @@ pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) n: u16,
 }
 
+impl LocalKey {
+    /// Public key of secret shared between parties
+    pub fn public_key(&self) -> GE2 {
+        self.shared_keys.vk
+    }
+}
+
 // Errors
 
-pub type Result<T> = std::result::Result<T, ProceedError>;
+type Result<T> = std::result::Result<T, ProceedError>;
 
+/// Proceeding protocol error
+///
+/// Subset of [keygen errors](enum@super::Error) that can occur at protocol proceeding (i.e. after
+/// every message was received and pre-validated).
 #[derive(Debug, Error)]
 pub enum ProceedError {
     #[error("round 2: verify commitments: {0:?}")]

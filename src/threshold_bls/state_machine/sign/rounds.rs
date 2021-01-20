@@ -87,6 +87,10 @@ impl Round1 {
 
 // Errors
 
+/// Proceeding protocol error
+///
+/// Subset of [signing errors](enum@super::Error) that can occur at protocol proceeding (i.e. after
+/// every message was received and pre-validated).
 #[derive(Debug, Error)]
 pub enum ProceedError {
     /// Every party needs to say which index it was using at keygen. This error is raised if
