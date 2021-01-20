@@ -184,7 +184,8 @@ impl StateMachine for Sign {
     fn current_round(&self) -> u16 {
         match &self.round {
             R::Round0(_) => 0,
-            R::Round1(_) | R::Final(_) | R::Gone => 1,
+            R::Round1(_) => 1,
+            R::Final(_) | R::Gone => 2,
         }
     }
 
@@ -240,6 +241,7 @@ mod test {
 
         // Sign
         let mut sign_simulation = Simulation::new();
+        sign_simulation.enable_benchmarks(true);
 
         let parties_keys: Vec<_> = s
             .iter()
@@ -257,11 +259,26 @@ mod test {
         assert!(sigs.iter().all(|&item| item == first));
         // test the signatures pass verification
         assert!(parties_keys[0].shared_keys.verify(&sigs[0], msg));
+
+        println!("Benchmarks:");
+        println!("{:#?}", sign_simulation.benchmark_results().unwrap());
     }
 
     #[test]
     fn simulate_sign_t1_n2() {
         let msg = b"~~ MESSAGE ~~";
         simulate_sign(&msg[..], &[1, 2], 1, 2);
+    }
+
+    #[test]
+    fn simulate_sign_t1_n3() {
+        let msg = b"~~ MESSAGE ~~";
+        simulate_sign(&msg[..], &[1, 2], 1, 3);
+    }
+
+    #[test]
+    fn simulate_sign_t2_n3() {
+        let msg = b"~~ MESSAGE ~~";
+        simulate_sign(&msg[..], &[1, 2, 3], 2, 3);
     }
 }

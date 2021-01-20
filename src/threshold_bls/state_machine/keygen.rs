@@ -276,7 +276,8 @@ impl StateMachine for Keygen {
             R::Round1(_) => 1,
             R::Round2(_) => 2,
             R::Round3(_) => 3,
-            R::Round4(_) | R::Final(_) | R::Gone => 4,
+            R::Round4(_) => 4,
+            R::Final(_) | R::Gone => 5,
         }
     }
 
@@ -341,12 +342,18 @@ mod test {
 
     fn simulate_keygen(t: u16, n: u16) -> Vec<LocalKey> {
         let mut simulation = Simulation::new();
+        simulation.enable_benchmarks(true);
 
         for i in 1..=n {
             simulation.add_party(Keygen::new(i, t, n).unwrap());
         }
 
-        simulation.run().unwrap()
+        let keys = simulation.run().unwrap();
+
+        println!("Benchmark results:");
+        println!("{:#?}", simulation.benchmark_results().unwrap());
+
+        keys
     }
 
     #[test]

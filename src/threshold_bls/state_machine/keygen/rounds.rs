@@ -70,7 +70,7 @@ impl Round1 {
         })
     }
     pub fn is_expensive(&self) -> bool {
-        true
+        false
     }
     pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<party_i::KeyGenComm>> {
         containers::BroadcastMsgsStore::new(i, n)
