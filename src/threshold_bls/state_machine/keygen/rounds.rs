@@ -7,6 +7,7 @@ use curv::elliptic::curves::bls12_381::g2::GE as GE2;
 use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
 use round_based::Msg;
+use thiserror::Error;
 
 use crate::threshold_bls::party_i;
 
@@ -262,9 +263,12 @@ pub struct LocalKey {
 
 pub type Result<T> = std::result::Result<T, ProceedError>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ProceedError {
+    #[error("round 2: verify commitments: {0:?}")]
     Round2VerifyCommitments(crate::Error),
+    #[error("round 3: verify vss construction: {0:?}")]
     Round3VerifyVssConstruct(crate::Error),
+    #[error("round 4: verify dlog proof: {0:?}")]
     Round4VerifyDLogProof(crate::Error),
 }

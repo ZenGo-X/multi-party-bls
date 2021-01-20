@@ -11,6 +11,7 @@ use round_based::containers::{
     *,
 };
 use round_based::{IsCritical, Msg, StateMachine};
+use thiserror::Error;
 
 use crate::threshold_bls::party_i;
 
@@ -75,7 +76,7 @@ impl Keygen {
     where
         F: FnMut(T) -> M + 'a,
     {
-        (&mut self.msgs_queue).map(move |m: Msg<T>| m.map_body(|m| ProtocolMessage(f(m))))
+        (&mut self.msgs_queue).gmap(move |m: Msg<T>| m.map_body(|m| ProtocolMessage(f(m))))
     }
 
     /// Proceeds round state if it received enough messages and if it's cheap to compute or
@@ -293,7 +294,7 @@ impl StateMachine for Keygen {
     fn pick_output(&mut self) -> Option<Result<Self::Output>> {
         match self.round {
             R::Final(_) => (),
-            R::Gone => return Some(Err(Error::DoublePickResult)),
+            R::Gone => return Some(Err(Error::DoublePickOutput)),
             _ => return None,
         }
 
@@ -404,28 +405,37 @@ type Msg4 = DLogProof<GE2>;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
     /// Proceeding round resulted in error
-    ProceedRound(ProceedError),
+    #[error("proceed round: {0}")]
+    ProceedRound(#[source] ProceedError),
 
     /// Too few parties (`n < 2`)
+    #[error("at least 2 parties are required for keygen")]
     TooFewParties,
     /// Threshold value `t` is not in range `[1; n-1]`
+    #[error("threshold is not in range [1; n-1]")]
     InvalidThreshold,
     /// Party index `i` is not in range `[1; n]`
+    #[error("party index is not in range [1; n]")]
     InvalidPartyIndex,
 
     /// Received message didn't pass pre-validation
-    HandleMessage(StoreErr),
-    /// It's an internal error which should never happen
+    #[error("received message didn't pass pre-validation: {0}")]
+    HandleMessage(#[source] StoreErr),
     /// Received message which we didn't expect to receive now (e.g. message from previous round)
+    #[error(
+        "didn't expect to receive message from round {msg_round} (being at round {current_round})"
+    )]
     ReceivedOutOfOrderMessage { current_round: u16, msg_round: u16 },
     /// [Keygen::pick_output] called twice
-    DoublePickResult,
+    #[error("pick_output called twice")]
+    DoublePickOutput,
 
     /// Some internal assertions were failed, which is a bug
+    #[error("internal error: {0:?}")]
     InternalError(InternalError),
 }
 
