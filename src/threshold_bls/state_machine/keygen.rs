@@ -13,6 +13,7 @@ use round_based::containers::{
     *,
 };
 use round_based::{IsCritical, Msg, StateMachine};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::threshold_bls::party_i;
@@ -391,10 +392,10 @@ enum R {
 /// Protocol message which parties send on wire
 ///
 /// Hides actual messages structure so it could be changed without breaking semver policy.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolMessage(M);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 enum M {
     Round1(party_i::KeyGenComm),
     Round2(party_i::KeyGenDecom),

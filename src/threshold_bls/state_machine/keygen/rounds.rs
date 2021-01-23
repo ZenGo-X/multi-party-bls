@@ -7,6 +7,7 @@ use curv::elliptic::curves::bls12_381::g2::GE as GE2;
 use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
 use round_based::Msg;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::threshold_bls::party_i;
@@ -250,7 +251,7 @@ impl Round4 {
 }
 
 /// Local secret obtained by party after [keygen](super::Keygen) protocol is completed
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
     pub(in crate::threshold_bls::state_machine) vk_vec: Vec<GE2>,

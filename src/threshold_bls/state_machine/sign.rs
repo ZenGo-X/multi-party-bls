@@ -10,6 +10,7 @@ use round_based::containers::{
     *,
 };
 use round_based::{IsCritical, Msg, StateMachine};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::basic_bls::BLSSignature;
@@ -327,10 +328,10 @@ enum R {
 /// Protocol message which parties send on wire
 ///
 /// Hides actual messages structure so it could be changed without breaking semver policy.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolMessage(M);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum M {
     Round1((u16, party_i::PartialSignature)),
 }
