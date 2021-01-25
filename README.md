@@ -5,7 +5,69 @@ Currently two protocols are implemented:
 - Aggregated BLS. Based on the MSP protocol ([BDN18](https://eprint.iacr.org/2018/483.pdf), section 3.1) 
 - Threshold BLS assuming dishonest majority. Based on Threshold GLOW signatures ([GLOW20](https://eprint.iacr.org/2020/096.pdf) version 20200806:135847)
 
+# Demo
+Using demo CLI app, you can distributedly generate key and sign data.
 
+0. (Optional)
+   Set environment variable to see log messages:
+   ```bash
+   export RUST_LOG=demo=trace
+   ```
+
+1. Start mediator server:
+   ```bash
+   cargo run --example cli -- mediator-server run
+   ```
+   Mediator server allow parties to communicate with each other. By default, it listens at 127.0.0.1:8333
+
+2. Run distributed keygen by launching N parties:
+   ```bash
+   cargo run --example cli -- keygen -t 1 -n 3 --output target/keys/key1
+   cargo run --example cli -- keygen -t 1 -n 3 --output target/keys/key2
+   cargo run --example cli -- keygen -t 1 -n 3 --output target/keys/key3
+   ```
+   This will generate key between 3 parties with a threshold=1. Every party connects to mediator server
+   and uses it to send and receive messages to/from other parties within the protocol.
+
+   Every party will output result public key, e.g.:
+   ```
+   Public key: 951f5b5bc45af71346f4a7aee6b50670c07522175f7ebd671740075e4247b45f5f03206ae8274d77337eae797e0f69490cca3ee5da31eb5f8746dd942034550dff5c4695ee7160f32bfa8424d40e3690bdd7cf4d58e9ab5d03d00d50fc837278
+   ```
+
+   Parties private local shares will be in `target/keys` folder
+
+3. Let's sign some data using 2 parties:
+   ```bash
+   cargo run --example cli -- sign -n 2 --key target/keys/key1 --digest some-data
+   cargo run --example cli -- sign -n 2 --key target/keys/key2 --digest some-data
+   ```
+
+   Every party will output the same signature, e.g.:
+   ```
+   Signature: acbac87f8168d866df8d1f605cf8d688c64ae491e6d6cbc60db4fc0952dc097452f252cb2f746a948bac0e2311e6c14e
+   ```
+
+4. Then lets check that signature is indeed valid.
+   You can use command:
+   ```bash
+   cargo run --example cli -- verify --digest DATA --signature SIG --public-key PK
+   ```
+
+   E.g.:
+   ```bash
+   cargo run --example cli -- verify --digest some-data \
+     --signature acbac87f8168d866df8d1f605cf8d688c64ae491e6d6cbc60db4fc0952dc097452f252cb2f746a948bac0e2311e6c14e \
+     --public-key 951f5b5bc45af71346f4a7aee6b50670c07522175f7ebd671740075e4247b45f5f03206ae8274d77337eae797e0f69490cca3ee5da31eb5f8746dd942034550dff5c4695ee7160f32bfa8424d40e3690bdd7cf4d58e9ab5d03d00d50fc837278
+   ```
+
+   Output:
+   ```
+   Signature is valid
+   ```
+
+**_Note_** that if you need to run several protocols (keygen/sign) concurrently, you need to provide a unique 
+identifier to each group of parties by specifying `--room-id` flag. To learn more, see 
+`cargo run --example cli -- keygen --help`
 
 # Development
 
@@ -19,7 +81,7 @@ Please, follow instruction to see how your changes effect on performance:
    ```
    It will take a few minutes.
    After that, you should be able to discover HTML-rendered report at `./target/criterion/report/index.html`.
-   It contains results of benchmarks along with nice-rendered charts.
+   It'll contain results of benchmarks along with nice-rendered charts.
 3. Checkout back on the commit with your changes
 4. Run benchmarks again:
    ```shell
