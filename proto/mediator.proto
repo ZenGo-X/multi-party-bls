@@ -1,0 +1,10 @@
+syntax = "proto3";
+package internal.mediator;
+
+service Mediator {
+  rpc Join(stream Msg) returns (stream Msg);
+}
+
+message Msg {
+  bytes payload = 1;
+}
