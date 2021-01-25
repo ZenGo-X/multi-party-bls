@@ -7,9 +7,6 @@ Currently two protocols are implemented:
 
 
 
-## Warning
-Do not use this code in production before consulting with us. Feel free to [reach out](mailto:github@zengo.com) or join ZenGo X [Telegram](https://t.me/zengo_x).
-
 # Development
 
 ## Detecting performance regression
@@ -37,3 +34,6 @@ Please, follow instruction to see how your changes effect on performance:
 **_Note_** that benchmark results do not show real-world performance of multi party computation since
 everything is computed sequentially, not in parallel. We do not allocate separate thread for every party
 as it will make harder to reason about performance differences.
+
+# Warning
+Do not use this code in production before consulting with us. Feel free to [reach out](mailto:github@zengo.com) or join ZenGo X [Telegram](https://t.me/joinchat/ET1mddGXRoyCxZ-7).
