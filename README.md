@@ -5,6 +5,15 @@ Currently two protocols are implemented:
 - Aggregated BLS. Based on the MSP protocol ([BDN18](https://eprint.iacr.org/2018/483.pdf), section 3.1) 
 - Threshold BLS assuming dishonest majority. Based on Threshold GLOW signatures ([GLOW20](https://eprint.iacr.org/2020/096.pdf) version 20200806:135847)
 
+## Threshold BLS performance
+We deployed 3 parties at dedicated AWS t3.medium instances and measured keygen & signing running time (t=1, n=3). Here are results:
+* Keygen
+  * Mean: 158.4ms
+  * Std: 18.4ms
+* Signing
+  * Mean: 45.5ms
+  * Std: 21.2ms
+
 # Demo
 Using demo CLI app, you can distributedly generate key and sign data.
 
