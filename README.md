@@ -68,7 +68,7 @@ async fn connect() -> Result<(
 
 let (i, incoming, outcoming) = connect().await?;
 // message - bytes to sign, n - number of parties involved in signing,
-// local_key - local secret key obtained by thin party at keygen
+// local_key - local secret key obtained by this party at keygen
 let signing = Sign::new(message, i, n, local_key)?;
 let (_, sig) = AsyncProtocol::new(signing, incoming, outcoming)
     .run().await?;
