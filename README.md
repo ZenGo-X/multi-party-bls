@@ -14,6 +14,75 @@ We deployed 3 parties at dedicated AWS t3.medium instances and measured keygen &
   * Mean: 45.5ms
   * Std: 21.2ms
 
+## How to use it
+To execute any protocol (keygen/signing) in [tokio] async environment, you need to define
+message delivery logic and construct stream of incoming messages and sink for outcoming
+messages. Then you can execute protocol using [AsyncProtocol] (see below).
+
+[tokio]: https://tokio.rs
+[AsyncProtocol]: https://docs.rs/round-based/0.1.1/round_based/async_runtime/struct.AsyncProtocol.html
+
+Messages delivery should meet security assumptions:
+* Any P2P message must be encrypted so no one can read it except recipient
+* Broadcast messages must be signed, so no one can forge message sender
+
+### Keygen
+```rust
+use round_based::{Msg, AsyncProtocol};
+use bls::threshold_bls::state_machine::keygen::{Keygen, ProtocolMessage};
+
+async fn connect() -> Result<(
+   // Party's unique index in range [1;parties_count]
+   u16,
+   // Incoming messages
+   impl Stream<Item=Result<Msg<ProtocolMessage>, RecvErr>> + FusedStream + Unpin,
+   // Outcoming messages
+   impl Sink<Msg<ProtocolMessage>, Error=SendErr> + Unpin,
+)> {
+   // ...
+}
+
+let (i, incoming, outcoming) = connect().await?;
+// n - number of parties involved in keygen, t - threshold value, i - party's index
+let keygen = Keygen::new(i, t, n)?;
+let local_key = AsyncProtocol::new(keygen, incoming, outcoming)
+    .run().await?;
+println!("Public key: {:?}", local_key.public_key());
+```
+
+See our [demo](examples/cli.rs) for more concrete examples: we have method [join] which 
+is used to set up message delivery (similar to connect function from example above),
+and we call it in [keygen] & [signing].
+
+[join]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/mediator/client.rs#L37
+[keygen]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/cli.rs#L79
+[signing]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/cli.rs#L129
+
+### Sign
+```rust
+use round_based::{Msg, AsyncProtocol};
+use bls::threshold_bls::state_machine::sign::{Sign, ProtocolMessage};
+
+async fn connect() -> Result<(
+    // Party's unique index in range [1;parties_count]
+    u16,
+    // Incoming messages
+    impl Stream<Item=Result<Msg<ProtocolMessage>, RecvErr>> + FusedStream + Unpin,
+    // Outcoming messages
+    impl Sink<Msg<ProtocolMessage>, Error=SendErr> + Unpin,                        
+)> {
+    // ...
+}
+
+let (i, incoming, outcoming) = connect().await?;
+// message - bytes to sign, n - number of parties involved in signing,
+// local_key - local secret key obtained by this party at keygen
+let signing = Sign::new(message, i, n, local_key)?;
+let (_, sig) = AsyncProtocol::new(signing, incoming, outcoming)
+    .run().await?;
+println!("Signature: {:?}", sig);
+```
+
 # Demo
 Using demo CLI app, you can distributedly generate key and sign data.
 
