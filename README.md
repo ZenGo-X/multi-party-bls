@@ -46,9 +46,17 @@ let (i, incoming, outcoming) = connect().await?;
 // n - number of parties involved in keygen, t - threshold value, i - party's index
 let keygen = Keygen::new(i, t, n)?;
 let local_key = AsyncProtocol::new(keygen, incoming, outcoming)
-.run().await?;
+    .run().await?;
 println!("Public key: {:?}", local_key.public_key());
 ```
+
+See our [demo](examples/cli.rs) for more concrete examples: we have method [join] which 
+is used to set up message delivery (similar to connect function from example above),
+and we call it in [keygen] & [signing].
+
+[join]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/mediator/client.rs#L37
+[keygen]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/cli.rs#L79
+[signing]: https://github.com/ZenGo-X/multi-party-bls/blob/d3db4f46920066757f50a9576b3002cbbb21aef2/examples/cli.rs#L129
 
 ### Sign
 ```rust
