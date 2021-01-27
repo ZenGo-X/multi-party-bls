@@ -64,7 +64,7 @@ pub struct SignArgs {
 
     /// Message to sign
     #[structopt(long, parse(from_str))]
-    pub digest: Bytes,
+    pub digits: Bytes,
 
     /// Room identifier
     ///
@@ -87,7 +87,7 @@ pub struct VerifyArgs {
     pub signature: String,
     /// Being verified message
     #[structopt(long, parse(from_str))]
-    pub digest: Bytes,
+    pub digits: Bytes,
 }
 
 #[derive(StructOpt, Debug)]

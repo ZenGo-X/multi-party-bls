@@ -116,7 +116,7 @@ async fn sign(
     SignArgs {
         key: secret_key,
         parties: n,
-        digest,
+        digits: digest,
         room_id,
     }: SignArgs,
 ) -> Result<()> {
@@ -154,7 +154,7 @@ fn verify(
     VerifyArgs {
         public_key,
         signature,
-        digest,
+        digits: digest,
     }: VerifyArgs,
 ) -> Result<()> {
     use curv::elliptic::curves::bls12_381::{g1::GE as GE1, g2::GE as GE2};

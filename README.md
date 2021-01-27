@@ -47,8 +47,8 @@ Using demo CLI app, you can distributedly generate key and sign data.
 
 3. Let's sign some data using 2 parties:
    ```bash
-   cargo run --example cli -- sign -n 2 --key target/keys/key1 --digest some-data
-   cargo run --example cli -- sign -n 2 --key target/keys/key2 --digest some-data
+   cargo run --example cli -- sign -n 2 --key target/keys/key1 --digits some-data
+   cargo run --example cli -- sign -n 2 --key target/keys/key2 --digits some-data
    ```
 
    Every party will output the same signature, e.g.:
@@ -59,12 +59,12 @@ Using demo CLI app, you can distributedly generate key and sign data.
 4. Then lets check that signature is indeed valid.
    You can use command:
    ```bash
-   cargo run --example cli -- verify --digest DATA --signature SIG --public-key PK
+   cargo run --example cli -- verify --digits DATA --signature SIG --public-key PK
    ```
 
    E.g.:
    ```bash
-   cargo run --example cli -- verify --digest some-data \
+   cargo run --example cli -- verify --digits some-data \
      --signature acbac87f8168d866df8d1f605cf8d688c64ae491e6d6cbc60db4fc0952dc097452f252cb2f746a948bac0e2311e6c14e \
      --public-key 951f5b5bc45af71346f4a7aee6b50670c07522175f7ebd671740075e4247b45f5f03206ae8274d77337eae797e0f69490cca3ee5da31eb5f8746dd942034550dff5c4695ee7160f32bfa8424d40e3690bdd7cf4d58e9ab5d03d00d50fc837278
    ```
