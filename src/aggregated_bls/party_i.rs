@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use curv::arithmetic::traits::Modulo;
 use curv::elliptic::curves::bls12_381::g1::FE as FE1;
 use curv::elliptic::curves::bls12_381::g1::GE as GE1;
@@ -9,8 +7,6 @@ use curv::elliptic::curves::bls12_381::Pair;
 use curv::elliptic::curves::traits::ECPoint;
 use curv::elliptic::curves::traits::ECScalar;
 use curv::BigInt;
-use pairing_plus::bls12_381::Bls12;
-use pairing_plus::{CurveAffine, Engine};
 
 use crate::aggregated_bls::h1;
 use crate::basic_bls::BLSSignature;
@@ -65,16 +61,7 @@ impl Keys {
         signature.verify(message, apk)
     }
 
-    fn efficient_pairing_loop(vec_g1: &[GE1], vec_g2: &[GE2]) -> Pair {
-        let vec_g1_prep: Vec<_> = vec_g1.iter().map(|x| x.get_element().prepare()).collect();
-        let vec_g2_prep: Vec<_> = vec_g2.iter().map(|x| x.get_element().prepare()).collect();
-        let vec: Vec<_> = vec_g1_prep.iter().zip(vec_g2_prep.iter()).collect();
-        Pair {
-            e: Bls12::final_exponentiation(&Bls12::miller_loop(vec.iter())).unwrap(),
-        }
-    }
-
-    pub fn aggregate_bls(sig_vec: &[BLSSignature]) -> BLSSignature {
+    pub fn batch_aggregate_bls(sig_vec: &[BLSSignature]) -> BLSSignature {
         let (head, tail) = sig_vec.split_at(1);
         BLSSignature {
             sigma: tail.iter().fold(head[0].sigma, |acc, x| acc + x.sigma),
@@ -82,16 +69,29 @@ impl Keys {
     }
 
     fn core_aggregate_verify(apk_vec: &[APK], msg_vec: &[&[u8]], sig: &BLSSignature) -> bool {
-        let product_c2 = Keys::efficient_pairing_loop(&[sig.sigma], &[GE2::generator()]);
+        assert!(apk_vec.len() >= 1);
+        let product_c2 = Pair::compute_pairing(&sig.sigma, &GE2::generator());
         let vec_g1: Vec<GE1> = msg_vec.iter().map(|&x| GE1::hash_to_curve(&x)).collect();
-        let product_c1 = Keys::efficient_pairing_loop(&vec_g1, &apk_vec);
+        let vec: Vec<_> = vec_g1.iter().zip(apk_vec.iter()).collect();
+        let (head, tail) = vec.split_at(1);
+        let product_c1 = tail
+            .iter()
+            .fold(Pair::compute_pairing(head[0].0, head[0].1), |acc, x| {
+                acc.add_pair(&Pair::compute_pairing(x.0, x.1))
+            });
         product_c1.e == product_c2.e
     }
 
     pub fn aggregate_verify(apk_vec: &[APK], msg_vec: &[&[u8]], sig: &BLSSignature) -> bool {
-        if msg_vec.iter().collect::<HashSet<_>>().len() != msg_vec.len() {
-            return false;
-        };
+        assert!(apk_vec.len() == msg_vec.len());
+        if {
+            let mut tmp = msg_vec.to_vec();
+            tmp.sort();
+            tmp.dedup();
+            tmp.len() != msg_vec.len()
+        } {
+            return false; // verification fails if there is a repeated message
+        }
         Keys::core_aggregate_verify(apk_vec, msg_vec, sig)
     }
 }
