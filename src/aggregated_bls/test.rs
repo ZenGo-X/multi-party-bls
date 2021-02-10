@@ -1,4 +1,6 @@
-use crate::aggregated_bls::party_i::Keys;
+use crate::aggregated_bls::party_i::{Keys, APK};
+use crate::basic_bls::BLSSignature;
+use curv::elliptic::curves::bls12_381::g2::GE as GE2;
 
 // test 3 out of 3
 #[test]
@@ -32,65 +34,59 @@ fn agg_sig_test_3() {
 // test batch 3 out of 3 for 3 messages
 #[test]
 fn agg_sig_test_3_batch_3() {
-    let key_vec: Vec<Vec<_>> = (0..3)
-        .map(|_| (0..3).map(|j| Keys::new(j)).collect())
-        .collect();
-
-    let pk_vec: Vec<Vec<_>> = (0..3)
-        .map(|i| (0..3).map(|j| key_vec[i][j].pk_i).collect())
-        .collect();
-
-    let apk_vec: Vec<_> = (0..3).map(|i| Keys::aggregate(&pk_vec[i])).collect();
+    let (key_vec, pk_vec, apk_vec) = keygen_batch(3, 3);
 
     let msg_vec = vec![[1].as_ref(), [2].as_ref(), [3].as_ref()];
 
-    let sig_vec: Vec<Vec<_>> = (0..3)
+    let bls_sig = sign_batch(3, &key_vec, &pk_vec, &msg_vec);
+
+    // test batch aggregation to verify as correct
+    assert_eq!(Keys::aggregate_verify(&apk_vec, &msg_vec, &bls_sig), true);
+
+    // test verification to fail a bad entry in apk_vec
+    let (_, _, bad_a_v) = keygen_batch(3, 3);
+    assert_ne!(Keys::aggregate_verify(&bad_a_v, &msg_vec, &bls_sig), true);
+
+    // test verification to fail a bad entry in msg_vec
+    let bad_m_v = vec![[4].as_ref(), [5].as_ref(), [6].as_ref()];
+    assert_ne!(Keys::aggregate_verify(&apk_vec, &bad_m_v, &bls_sig), true);
+
+    // test verification to fail a bad bls signature
+    let (bad_k_v, bad_p_v, _) = keygen_batch(3, 3);
+    let bad_b_s = sign_batch(3, &bad_k_v, &bad_p_v, &msg_vec);
+    assert_ne!(Keys::aggregate_verify(&apk_vec, &msg_vec, &bad_b_s), true);
+}
+
+fn keygen(n_parties: usize) -> (Vec<Keys>, Vec<GE2>, APK) {
+    let keys_vec: Vec<Keys> = (0..n_parties).map(|i| Keys::new(i)).collect();
+    let pk_vec: Vec<GE2> = keys_vec.iter().map(|x| x.pk_i).collect();
+    let apk = Keys::aggregate(&pk_vec);
+    (keys_vec, pk_vec, apk)
+}
+
+fn keygen_batch(n_parties: usize, m_batches: usize) -> (Vec<Vec<Keys>>, Vec<Vec<GE2>>, Vec<APK>) {
+    let keygen_vec_batch: Vec<_> = (0..m_batches).map(|_| keygen(n_parties)).collect();
+    let keys_vec_batch = keygen_vec_batch.iter().map(|x| x.0.clone()).collect();
+    let pk_vec_batch = keygen_vec_batch.iter().map(|x| x.1.clone()).collect();
+    let apk_vec_batch = keygen_vec_batch.iter().map(|x| x.2.clone()).collect();
+    (keys_vec_batch, pk_vec_batch, apk_vec_batch)
+}
+
+fn sign_batch(
+    n_parties: usize,
+    key_vec: &Vec<Vec<Keys>>,
+    pk_vec: &Vec<Vec<GE2>>,
+    msg_vec: &[&[u8]],
+) -> BLSSignature {
+    let sig_vec: Vec<Vec<_>> = (0..n_parties)
         .map(|i| {
-            (0..3)
+            (0..n_parties)
                 .map(|j| key_vec[i][j].local_sign(msg_vec[i], &pk_vec[i]))
                 .collect()
         })
         .collect();
-
-    let bls_sig_vec: Vec<_> = (0..3)
+    let bls_sig_vec: Vec<_> = (0..n_parties)
         .map(|i| Keys::combine_local_signatures(&sig_vec[i]))
         .collect();
-
-    let bls_sig_agg = Keys::aggregate_bls(&bls_sig_vec);
-
-    assert_eq!(
-        Keys::aggregate_verify(&apk_vec, &msg_vec, &bls_sig_agg),
-        true
-    );
-    assert_eq!(
-        Keys::aggregate_verify(&[apk_vec[0]; 3], &msg_vec, &bls_sig_agg),
-        false
-    );
-
-    let bad_msg_vec = vec![[4].as_ref(), [5].as_ref(), [6].as_ref()];
-    assert_eq!(
-        Keys::aggregate_verify(&apk_vec, &bad_msg_vec, &bls_sig_agg),
-        false
-    );
-    assert_eq!(
-        Keys::aggregate_verify(&apk_vec, &msg_vec, &Keys::aggregate_bls(&[bls_sig_vec[0]])),
-        false
-    );
-
-    let rep_msg_vec = vec![[1].as_ref(), [1].as_ref(), [1].as_ref()];
-    let rep_sig_vec: Vec<Vec<_>> = (0..3)
-        .map(|i| {
-            (0..3)
-                .map(|j| key_vec[i][j].local_sign(&rep_msg_vec[i], &pk_vec[i]))
-                .collect()
-        })
-        .collect();
-    let rep_bls_sig_vec: Vec<_> = (0..3)
-        .map(|i| Keys::combine_local_signatures(&rep_sig_vec[i]))
-        .collect();
-    let rep_bls_sig_agg = Keys::aggregate_bls(&rep_bls_sig_vec);
-    assert_eq!(
-        Keys::aggregate_verify(&apk_vec, &rep_msg_vec, &rep_bls_sig_agg),
-        false
-    );
+    Keys::batch_aggregate_bls(&bls_sig_vec)
 }
