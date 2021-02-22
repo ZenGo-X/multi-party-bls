@@ -9,13 +9,17 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
-curv = { git = "https://github.com/ZenGo-X/curv", tag = "v0.5.4"}
 zeroize = "0.10"
 rand = "0.7.3"
 pairing-plus = "0.19"
 ff-zeroize = "0.6.3"
 round-based = { version = "0.1.0", features = [] }
 thiserror = "1.0.23"
+
+[dependencies.curv]
+git = "https://github.com/ZenGo-X/curv"
+tag = "v0.6.1"
+default-features = false
 
 [dev-dependencies]
 criterion = "0.3.3"
@@ -44,6 +48,7 @@ tonic-build = "0.3.1"
 crate-type = ["lib"]
 
 [features]
+default = ["curv/rust-gmp-kzen"]
 # Internally used feature for testing purposes. You normally don't want to use it.
 dev = []
 

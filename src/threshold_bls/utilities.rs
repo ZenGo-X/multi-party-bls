@@ -83,6 +83,7 @@ mod tests {
     use super::*;
     use curv::elliptic::curves::bls12_381::g1::FE as FE1;
     use curv::elliptic::curves::traits::{ECPoint, ECScalar};
+    use curv::arithmetic::traits::*;
 
     #[test]
     fn test_ecddh_proof() {
