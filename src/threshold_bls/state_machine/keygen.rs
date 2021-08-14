@@ -6,8 +6,7 @@ use std::time::Duration;
 
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::bls12_381::g2::FE as FE2;
-use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use curv::elliptic::curves::*;
 use round_based::containers::{
     push::{Push, PushExt},
     *,
@@ -31,8 +30,8 @@ pub struct Keygen {
 
     msgs1: Option<Store<BroadcastMsgs<party_i::KeyGenComm>>>,
     msgs2: Option<Store<BroadcastMsgs<party_i::KeyGenDecom>>>,
-    msgs3: Option<Store<P2PMsgs<(VerifiableSS<GE2>, FE2)>>>,
-    msgs4: Option<Store<BroadcastMsgs<DLogProof<GE2>>>>,
+    msgs3: Option<Store<P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>>>,
+    msgs4: Option<Store<BroadcastMsgs<DLogProof<Bls12_381_2>>>>,
 
     msgs_queue: Vec<Msg<ProtocolMessage>>,
 
@@ -399,8 +398,8 @@ pub struct ProtocolMessage(M);
 enum M {
     Round1(party_i::KeyGenComm),
     Round2(party_i::KeyGenDecom),
-    Round3((VerifiableSS<GE2>, FE2)),
-    Round4(DLogProof<GE2>),
+    Round3((VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)),
+    Round4(DLogProof<Bls12_381_2>),
 }
 
 // Error

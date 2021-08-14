@@ -1,4 +1,4 @@
-use curv::elliptic::curves::bls12_381::g1::GE as GE1;
+use curv::elliptic::curves::*;
 use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, Store};
 use round_based::Msg;
@@ -40,7 +40,7 @@ impl Round0 {
 
 pub struct Round1 {
     key: LocalKey,
-    message: GE1,
+    message: Point<Bls12_381_1>,
 
     partial_sig: party_i::PartialSignature,
 }
@@ -49,7 +49,7 @@ impl Round1 {
     pub fn proceed(
         self,
         input: BroadcastMsgs<(u16, party_i::PartialSignature)>,
-    ) -> Result<(GE1, BLSSignature)> {
+    ) -> Result<(Point<Bls12_381_1>, BLSSignature)> {
         let (indexes, sigs): (Vec<_>, Vec<_>) = input
             .into_vec_including_me((self.key.i, self.partial_sig))
             .into_iter()
@@ -63,14 +63,14 @@ impl Round1 {
                     claimed_index: keygen_i,
                 });
             }
-            vk_vec.push(self.key.vk_vec[usize::from(keygen_i) - 1])
+            vk_vec.push(self.key.vk_vec[usize::from(keygen_i) - 1].clone())
         }
 
-        let indexes: Vec<_> = indexes.into_iter().map(|i| usize::from(i) - 1).collect();
+        let indexes: Vec<_> = indexes.into_iter().map(|i| i - 1).collect();
         let sig = self
             .key
             .shared_keys
-            .combine(&vk_vec, &sigs, self.message, &indexes)
+            .combine(&vk_vec, &sigs, self.message.clone(), &indexes)
             .map_err(ProceedError::PartialSignatureVerification)?;
         Ok((self.message, sig))
     }

@@ -5,7 +5,6 @@ authors = ["Doron <doronz@zengo.com>", "Omer <omer@zengo.com>", "Denis <dsurv@ya
 description = "threshold BLS library"
 edition = "2018"
 
-
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
@@ -15,16 +14,16 @@ pairing-plus = "0.19"
 ff-zeroize = "0.6.3"
 round-based = { version = "0.1.0", features = [] }
 thiserror = "1.0.23"
+sha2 = "0.8.0"
 
-[dependencies.curv]
+[dependencies.curv-kzen]
 git = "https://github.com/ZenGo-X/curv"
-tag = "v0.6.2"
+branch = "ldei-improvements"
 default-features = false
 
 [dev-dependencies]
 criterion = "0.3.3"
 bls_sigs_ref = "0.3.0"
-sha2 = "0.8.0"
 round-based = { version = "0.1.0", features = ["dev"] }
 
 # Example dependencies
@@ -48,7 +47,7 @@ tonic-build = "0.4.2"
 crate-type = ["lib"]
 
 [features]
-default = ["curv/rust-gmp-kzen"]
+default = ["curv-kzen/rust-gmp-kzen"]
 # Internally used feature for testing purposes. You normally don't want to use it.
 dev = []
 
