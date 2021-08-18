@@ -13,6 +13,7 @@ use curv::BigInt;
 use crate::Error;
 use crate::basic_bls::BLSSignature;
 use crate::threshold_bls::utilities::{ECDDHProof, ECDDHStatement, ECDDHWitness};
+use curv::cryptographic_primitives::proofs::ProofError;
 
 const SECURITY: usize = 256;
 
@@ -216,11 +217,30 @@ impl SharedKeys {
         )
     }
 
+    pub fn verify_partial_sig(
+        H_x: &Point<Bls12_381_1>,
+        partial_sig: &PartialSignature,
+        vk_i: &Point<Bls12_381_2>,
+    ) -> Result<(), ProofError> {
+        let delta = ECDDHStatement {
+            g1: H_x.clone(),
+            h1: partial_sig.sigma_i.clone(),
+            g2: Point::generator().to_point(),
+            h2: vk_i.clone(),
+        };
+
+        if partial_sig.ddh_proof.verify(&delta) {
+            Ok(())
+        } else {
+            Err(ProofError)
+        }
+    }
+
     pub fn combine(
         &self,
         vk_vec: &[Point<Bls12_381_2>],
         partial_sigs_vec: &[PartialSignature],
-        H_x: Point<Bls12_381_1>,
+        H_x: &Point<Bls12_381_1>,
         s: &[u16],
     ) -> Result<BLSSignature, Error> {
         if vk_vec.len() != partial_sigs_vec.len()
@@ -234,16 +254,13 @@ impl SharedKeys {
 
         let partial_sigs_verify = (0..vk_vec.len())
             .map(|i| {
-                let delta = ECDDHStatement {
-                    g1: H_x.clone(),
-                    h1: partial_sigs_vec[i].sigma_i.clone(),
-                    g2: Point::generator().to_point(),
-                    h2: vk_vec[i].clone(),
-                };
-
-                partial_sigs_vec[i].ddh_proof.verify(&delta)
+                Self::verify_partial_sig(
+                    H_x,
+                    &partial_sigs_vec[i],
+                    &vk_vec[i],
+                )
             })
-            .all(|x| x);
+            .all(|x| x.is_ok());
         if partial_sigs_verify == false {
             return Err(Error::PartialSignatureVerificationError);
         }

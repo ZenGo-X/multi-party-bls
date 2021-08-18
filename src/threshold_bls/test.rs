@@ -59,7 +59,9 @@ pub fn keygen_t_n_parties(t: u16, n: u16) -> (Vec<SharedKeys>, Vec<Point<Bls12_3
     let (bc1_vec, decom_vec): (Vec<_>, Vec<_>) =
         party_keys_vec.iter().map(|k| k.phase1_broadcast()).unzip();
 
-    let y_vec = (0..n).map(|i| decom_vec[usize::from(i)].y_i.clone()).collect::<Vec<Point<Bls12_381_2>>>();
+    let y_vec = (0..n)
+        .map(|i| decom_vec[usize::from(i)].y_i.clone())
+        .collect::<Vec<Point<Bls12_381_2>>>();
 
     let mut vss_scheme_vec = Vec::new();
     let mut secret_shares_vec = Vec::new();
@@ -106,7 +108,9 @@ pub fn keygen_t_n_parties(t: u16, n: u16) -> (Vec<SharedKeys>, Vec<Point<Bls12_3
         dlog_proof_vec.push(dlog_proof);
     }
 
-    let vk_vec = (0..n).map(|i| dlog_proof_vec[usize::from(i)].pk.clone()).collect::<Vec<Point<Bls12_381_2>>>();
+    let vk_vec = (0..n)
+        .map(|i| dlog_proof_vec[usize::from(i)].pk.clone())
+        .collect::<Vec<Point<Bls12_381_2>>>();
 
     //all parties run:
     Keys::verify_dlog_proofs(&parames, &dlog_proof_vec).expect("");
@@ -156,7 +160,7 @@ pub fn sign(
             k.combine(
                 &vk_participating_parties[..],
                 &partial_sign_vec[..],
-                H_x[0].clone(),
+                &H_x[0],
                 s,
             )
             .expect("")
@@ -186,8 +190,12 @@ fn another_bls_impl_validates_signature() {
     let keygen = keygen_t_n_parties(1, 2);
     let public_key = &keygen.0[0].vk;
     let mut public_key_bytes = vec![];
-    G2Affine::serialize(public_key.as_raw().underlying_ref(), &mut public_key_bytes, true)
-        .expect("serialize to vec should always succeed");
+    G2Affine::serialize(
+        public_key.as_raw().underlying_ref(),
+        &mut public_key_bytes,
+        true,
+    )
+    .expect("serialize to vec should always succeed");
 
     // Sign message
     let message = b"KZen";
@@ -228,8 +236,14 @@ fn we_recognize_signatures_generated_by_ref_impl() {
     assert!(valid);
 
     // Now check that our primitive `BLSSignature` also successfully verifies signature
-    let public_key = Point::from_raw(bls12_381::g2::G2Point::from_underlying(public_key.into_affine())).unwrap();
-    let sigma = Point::from_raw(bls12_381::g1::G1Point::from_underlying(signature.into_affine())).unwrap();
+    let public_key = Point::from_raw(bls12_381::g2::G2Point::from_underlying(
+        public_key.into_affine(),
+    ))
+    .unwrap();
+    let sigma = Point::from_raw(bls12_381::g1::G1Point::from_underlying(
+        signature.into_affine(),
+    ))
+    .unwrap();
     let signature = BLSSignature { sigma };
     let valid = signature.verify(message, &public_key);
     assert!(valid);
