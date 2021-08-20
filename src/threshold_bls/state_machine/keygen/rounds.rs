@@ -208,7 +208,10 @@ impl Round3 {
     pub fn is_expensive(&self) -> bool {
         true
     }
-    pub fn expects_messages(i: u16, n: u16) -> Store<P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>> {
+    pub fn expects_messages(
+        i: u16,
+        n: u16,
+    ) -> Store<P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>> {
         containers::P2PMsgsStore::new(i, n)
     }
 }
@@ -261,6 +264,42 @@ pub struct LocalKey {
 }
 
 impl LocalKey {
+    pub fn new(
+        t: u16,
+        n: u16,
+        sk_i: Scalar<Bls12_381_2>,
+        vk_vec: Vec<Point<Bls12_381_2>>,
+        tpk: Point<Bls12_381_2>,
+    ) -> Result<Self, InvalidLocalKey> {
+        if n < 2 {
+            return Err(InvalidLocalKey::TooFewParties { n });
+        }
+        if !(1 <= t && t + 1 <= n) {
+            return Err(InvalidLocalKey::ThresholdNotInRange { t, n });
+        }
+        let vk_i = Point::generator() * &sk_i;
+        let i = (1..)
+            .zip(&vk_vec)
+            .find_map(|(j, vk_j)| if vk_i == *vk_j { Some(j) } else { None })
+            .ok_or(InvalidLocalKey::VkDoesntIncludeSk)?;
+
+        Ok(LocalKey {
+            shared_keys: party_i::SharedKeys {
+                index: i - 1,
+                params: ShamirSecretSharing {
+                    threshold: t,
+                    share_count: n,
+                },
+                vk: tpk,
+                sk_i,
+            },
+            vk_vec,
+
+            i,
+            t,
+            n,
+        })
+    }
     /// Public key of secret shared between parties
     pub fn public_key(&self) -> Point<Bls12_381_2> {
         self.shared_keys.vk.clone()
@@ -269,7 +308,7 @@ impl LocalKey {
 
 // Errors
 
-type Result<T> = std::result::Result<T, ProceedError>;
+type Result<T, E = ProceedError> = std::result::Result<T, E>;
 
 /// Proceeding protocol error
 ///
@@ -283,4 +322,15 @@ pub enum ProceedError {
     Round3VerifyVssConstruct(crate::Error),
     #[error("round 4: verify dlog proof: {0:?}")]
     Round4VerifyDLogProof(crate::Error),
+}
+
+/// Construction [LocalKey] error
+#[derive(Debug, Error)]
+pub enum InvalidLocalKey {
+    #[error("threshold not in range t={}, range=[1,{}]", t, n-1)]
+    ThresholdNotInRange { t: u16, n: u16 },
+    #[error("too few parties: {n}")]
+    TooFewParties { n: u16 },
+    #[error("vk_vec doesn't include vk_i = sk_i G")]
+    VkDoesntIncludeSk,
 }
