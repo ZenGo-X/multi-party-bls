@@ -36,7 +36,7 @@ fn agg_sig_test_3() {
 pub fn test_agg_sig_3_batch_3() {
     let msg_vec = vec![[1].as_ref(), [2].as_ref(), [3].as_ref()];
     let bad_m_v = vec![[4].as_ref(), [5].as_ref(), [6].as_ref()];
-    agg_sig_test_n_batch_m(3, 3, &msg_vec, &bad_m_v);
+    agg_sig_test_n_batch_m(3, &msg_vec, &bad_m_v);
 }
 
 #[test]
@@ -55,7 +55,7 @@ pub fn test_agg_sig_3_batch_5() {
         [9].as_ref(),
         [10].as_ref(),
     ];
-    agg_sig_test_n_batch_m(3, 5, &msg_vec, &bad_m_v);
+    agg_sig_test_n_batch_m(3, &msg_vec, &bad_m_v);
 }
 
 #[test]
@@ -68,14 +68,16 @@ pub fn test_agg_sig_3_batch_2() {
         [6].as_ref(),
         [7].as_ref(),
     ];
-    agg_sig_test_n_batch_m(3, 2, &msg_vec, &bad_m_v);
+    agg_sig_test_n_batch_m(3, &msg_vec, &bad_m_v);
 }
 
-// test batch 3 out of 3 for 5 messages
-pub fn agg_sig_test_n_batch_m(n: usize, m: usize, msg_vec: &[&[u8]], bad_m_v: &[&[u8]]) {
+// test batch n out of n for m messages
+pub fn agg_sig_test_n_batch_m(n: usize, msg_vec: &[&[u8]], bad_m_v: &[&[u8]]) {
+    assert_eq!(msg_vec.len(), bad_m_v.len());
+    let m = msg_vec.len();
     let (mkey_vec, pk_vec, apk_vec) = keygen_batch(n, m);
 
-    let bls_sig = sign_batch(3, &mkey_vec, &pk_vec, msg_vec);
+    let bls_sig = sign_batch(n, &mkey_vec, &pk_vec, msg_vec);
 
     // test batch aggregation to verify as correct
     assert_eq!(
@@ -98,7 +100,7 @@ pub fn agg_sig_test_n_batch_m(n: usize, m: usize, msg_vec: &[&[u8]], bad_m_v: &[
 
     // test verification to fail a bad bls signature
     let (bad_k_v, bad_p_v, _) = keygen_batch(n, m);
-    let bad_b_s = sign_batch(3, &bad_k_v, &bad_p_v, msg_vec);
+    let bad_b_s = sign_batch(n, &bad_k_v, &bad_p_v, msg_vec);
     assert_ne!(
         Keys::aggregate_verify(&apk_vec, msg_vec, &bad_b_s),
         true
