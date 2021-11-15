@@ -11,7 +11,7 @@ pub mod test;
 
 pub fn h1(index: usize, pk_vec: &[Point<Bls12_381_2>]) -> BigInt {
     let mut pk = vec![&pk_vec[index]];
-    let pk_ref_vec: Vec<_> = pk_vec.iter().map(|k| k).collect();
+    let pk_ref_vec: Vec<_> = pk_vec.iter().collect();
     pk.extend_from_slice(&pk_ref_vec[..]);
     Sha256::new().chain_points(pk).result_bigint()
 }

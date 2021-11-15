@@ -62,12 +62,12 @@ impl Keys {
     }
 
     fn core_aggregate_verify(apk_vec: &[APK], msg_vec: &[&[u8]], sig: &BLSSignature) -> bool {
-        assert!(apk_vec.len() >= 1);
+        assert!(!apk_vec.is_empty());
         let product_c2 = Pair::compute_pairing(&sig.sigma, &Point::generator());
         let vec_g1: Vec<Point<Bls12_381_1>> = msg_vec
             .iter()
             .map(|&x| {
-                Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(&x))
+                Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(x))
                     .expect("hash_to_curve must return valid point")
             })
             .collect();
@@ -83,12 +83,12 @@ impl Keys {
 
     pub fn aggregate_verify(apk_vec: &[APK], msg_vec: &[&[u8]], sig: &BLSSignature) -> bool {
         assert!(apk_vec.len() == msg_vec.len());
-        if {
+        let res = {
             let mut tmp = msg_vec.to_vec();
             tmp.sort();
             tmp.dedup();
             tmp.len() != msg_vec.len()
-        } {
+        }; if res {
             return false; // verification fails if there is a repeated message
         }
         Keys::core_aggregate_verify(apk_vec, msg_vec, sig)

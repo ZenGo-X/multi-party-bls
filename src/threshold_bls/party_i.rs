@@ -116,7 +116,7 @@ impl Keys {
                     &decom_vec[i].blind_factor,
                 ) == bc1_vec[i].com
             })
-            .all(|x| x == true);
+            .all(|x| x);
 
         let (vss_scheme, secret_shares) =
             VerifiableSS::share(params.threshold, params.share_count, &self.u_i);
@@ -149,7 +149,7 @@ impl Keys {
                     .is_ok()
                     && vss_scheme_vec[i].commitments[0] == y_vec[i]
             })
-            .all(|x| x == true);
+            .all(|x| x);
 
         match correct_ss_verify {
             true => {
@@ -263,7 +263,7 @@ impl SharedKeys {
         let partial_sigs_verify = (0..vk_vec.len())
             .map(|i| Self::verify_partial_sig(H_x, &partial_sigs_vec[i], &vk_vec[i]))
             .all(|x| x.is_ok());
-        if partial_sigs_verify == false {
+        if !partial_sigs_verify {
             return Err(Error::PartialSignatureVerificationError);
         }
 
@@ -285,7 +285,7 @@ impl SharedKeys {
             },
         );
 
-        return Ok(BLSSignature { sigma });
+        Ok(BLSSignature { sigma })
     }
 
     // check e(H(m), vk) == e(sigma, g2)

@@ -94,7 +94,7 @@ pub fn agg_sig_test_n_batch_m(n: usize, msg_vec: &[&[u8]], bad_m_v: &[&[u8]]) {
 }
 
 fn keygen(n_parties: usize) -> (Vec<Keys>, Vec<Point<Bls12_381_2>>, APK) {
-    let keys_vec: Vec<Keys> = (0..n_parties).map(|i| Keys::new(i)).collect();
+    let keys_vec: Vec<Keys> = (0..n_parties).map(Keys::new).collect();
     let pk_vec: Vec<Point<Bls12_381_2>> = keys_vec.iter().map(|x| x.pk_i.clone()).collect();
     let apk = Keys::aggregate(&pk_vec);
     (keys_vec, pk_vec, apk)

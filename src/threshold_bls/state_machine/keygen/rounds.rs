@@ -106,8 +106,8 @@ impl Round2 {
         O: Push<Msg<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>>,
     {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let received_decom = input.into_vec_including_me(self.decom);
         let (vss_scheme, secret_shares, index) = self
@@ -172,8 +172,8 @@ impl Round3 {
         O: Push<Msg<DLogProof<Bls12_381_2, Sha256>>>,
     {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let (vss_schemes, party_shares): (Vec<_>, Vec<_>) = input
             .into_vec_including_me((self.own_vss, self.own_share))
@@ -229,8 +229,8 @@ pub struct Round4 {
 impl Round4 {
     pub fn proceed(self, input: BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>) -> Result<LocalKey> {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
@@ -278,7 +278,7 @@ impl LocalKey {
         if n < 2 {
             return Err(InvalidLocalKey::TooFewParties { n });
         }
-        if !(1 <= t && t + 1 <= n) {
+        if !(1 <= t && t < n) {
             return Err(InvalidLocalKey::ThresholdNotInRange { t, n });
         }
         let vk_i = Point::generator() * &sk_i;

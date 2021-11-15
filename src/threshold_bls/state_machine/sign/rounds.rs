@@ -152,7 +152,7 @@ impl round_based::containers::MessageStore for ReceiveFirstValidPartialSigs {
         if !valid {
             return Err(ReceivedPartialSigNotValid::InvalidPartialSig);
         }
-        if self.msgs.iter().find(|(i, _)| *i == msg.body.0).is_some() {
+        if self.msgs.iter().any(|(i, _)| *i == msg.body.0) {
             return Err(ReceivedPartialSigNotValid::ShareOverwrite);
         }
 
