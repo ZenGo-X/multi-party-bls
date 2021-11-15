@@ -1,5 +1,5 @@
-use curv::elliptic::curves::*;
 use curv::elliptic::curves::bls12_381::{self, Pair};
+use curv::elliptic::curves::*;
 
 use crate::aggregated_bls::h1;
 use crate::basic_bls::BLSSignature;
@@ -29,7 +29,9 @@ impl Keys {
     }
 
     pub fn aggregate(pk_vec: &[Point<Bls12_381_2>]) -> APK {
-        pk_vec.iter().enumerate()
+        pk_vec
+            .iter()
+            .enumerate()
             .map(|(i, pk_i)| pk_i * Scalar::from_bigint(&h1(i, pk_vec)))
             .sum()
     }
@@ -55,18 +57,20 @@ impl Keys {
 
     pub fn batch_aggregate_bls(sig_vec: &[BLSSignature]) -> BLSSignature {
         BLSSignature {
-            sigma: sig_vec.iter()
-                .map(|s| &s.sigma)
-                .sum(),
+            sigma: sig_vec.iter().map(|s| &s.sigma).sum(),
         }
     }
 
     fn core_aggregate_verify(apk_vec: &[APK], msg_vec: &[&[u8]], sig: &BLSSignature) -> bool {
         assert!(apk_vec.len() >= 1);
         let product_c2 = Pair::compute_pairing(&sig.sigma, &Point::generator());
-        let vec_g1: Vec<Point<Bls12_381_1>> = msg_vec.iter().map(|&x|
-            Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(&x)).expect("hash_to_curve must return valid point")
-        ).collect();
+        let vec_g1: Vec<Point<Bls12_381_1>> = msg_vec
+            .iter()
+            .map(|&x| {
+                Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(&x))
+                    .expect("hash_to_curve must return valid point")
+            })
+            .collect();
         let vec: Vec<_> = vec_g1.iter().zip(apk_vec.iter()).collect();
         let (head, tail) = vec.split_at(1);
         let product_c1 = tail

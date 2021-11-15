@@ -43,14 +43,8 @@ impl ECDDHProof {
         let s2 = Scalar::from_raw(s1.into_raw());
         let a2 = &delta.g2 * &s2;
         let e = Sha256::new()
-            .chain_points([
-                &delta.g1,
-                &delta.h1,
-            ])
-            .chain_points([
-                &delta.g2,
-                &delta.h2,
-            ])
+            .chain_points([&delta.g1, &delta.h1])
+            .chain_points([&delta.g2, &delta.h2])
             .chain_point(&a1)
             .chain_point(&a2)
             .result_bigint();
@@ -60,14 +54,8 @@ impl ECDDHProof {
 
     pub fn verify(&self, delta: &ECDDHStatement) -> bool {
         let e = Sha256::new()
-            .chain_points([
-                &delta.g1,
-                &delta.h1,
-            ])
-            .chain_points([
-                &delta.g2,
-                &delta.h2,
-            ])
+            .chain_points([&delta.g1, &delta.h1])
+            .chain_points([&delta.g2, &delta.h2])
             .chain_point(&self.a1)
             .chain_point(&self.a2)
             .result_bigint();
@@ -96,7 +84,12 @@ mod tests {
         let h1 = g1 * &x1;
         let h2 = g2 * &x2;
 
-        let delta = ECDDHStatement { g1: g1.to_point(), h1, g2: g2.clone(), h2 };
+        let delta = ECDDHStatement {
+            g1: g1.to_point(),
+            h1,
+            g2: g2.clone(),
+            h2,
+        };
         let w = ECDDHWitness { x: x1.to_bigint() };
         let proof = ECDDHProof::prove(&w, &delta);
         assert!(proof.verify(&delta));
@@ -112,7 +105,12 @@ mod tests {
         let h1 = g1 * &x1;
         let h2 = g2 * (&x2 + Scalar::from(1));
 
-        let delta = ECDDHStatement { g1: g1.to_point(), h1, g2: g2.clone(), h2 };
+        let delta = ECDDHStatement {
+            g1: g1.to_point(),
+            h1,
+            g2: g2.clone(),
+            h2,
+        };
         let w = ECDDHWitness { x: x1.to_bigint() };
         let proof = ECDDHProof::prove(&w, &delta);
         assert!(!proof.verify(&delta));

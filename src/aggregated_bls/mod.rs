@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use curv::cryptographic_primitives::hashing::{DigestExt, Digest};
+use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
 use curv::elliptic::curves::*;
 use curv::BigInt;
 use sha2::Sha256;

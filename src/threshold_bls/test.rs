@@ -209,8 +209,9 @@ fn another_bls_impl_validates_signature() {
 
     // Verify signature
     let cs = &[1u8];
-    let valid =
-        BLSSigCore::<ExpandMsgXmd<old_sha2::Sha256>>::core_verify(public_key, signature, message, cs);
+    let valid = BLSSigCore::<ExpandMsgXmd<old_sha2::Sha256>>::core_verify(
+        public_key, signature, message, cs,
+    );
     assert!(valid);
 }
 
@@ -222,7 +223,8 @@ fn we_recognize_signatures_generated_by_ref_impl() {
     use pairing_plus::hash_to_field::ExpandMsgXmd;
 
     // Keygen
-    let (secret_key, public_key) = <G1 as BLSSigCore<ExpandMsgXmd<old_sha2::Sha256>>>::keygen(b"123");
+    let (secret_key, public_key) =
+        <G1 as BLSSigCore<ExpandMsgXmd<old_sha2::Sha256>>>::keygen(b"123");
 
     // Sign message
     let message = b"KZen";
@@ -231,8 +233,9 @@ fn we_recognize_signatures_generated_by_ref_impl() {
         BLSSigCore::<ExpandMsgXmd<old_sha2::Sha256>>::core_sign(secret_key, message, cs);
 
     // Verify signature
-    let valid =
-        BLSSigCore::<ExpandMsgXmd<old_sha2::Sha256>>::core_verify(public_key, signature, message, cs);
+    let valid = BLSSigCore::<ExpandMsgXmd<old_sha2::Sha256>>::core_verify(
+        public_key, signature, message, cs,
+    );
     assert!(valid);
 
     // Now check that our primitive `BLSSignature` also successfully verifies signature

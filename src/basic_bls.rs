@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
-use curv::elliptic::curves::*;
 use curv::elliptic::curves::bls12_381::{self, Pair};
+use curv::elliptic::curves::*;
 
 use ff_zeroize::Field;
-use pairing_plus::bls12_381::{Fq12};
+use pairing_plus::bls12_381::Fq12;
 
 /// Based on https://eprint.iacr.org/2018/483.pdf
 
@@ -43,7 +43,8 @@ impl BLSSignature {
     pub fn verify(&self, message: &[u8], pubkey: &Point<Bls12_381_2>) -> bool {
         let H_m = Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(message))
             .expect("hash_to_curve must return valid point");
-        let product = Pair::efficient_pairing_mul(&H_m, pubkey, &self.sigma, &(-Point::generator()));
+        let product =
+            Pair::efficient_pairing_mul(&H_m, pubkey, &self.sigma, &(-Point::generator()));
         product.e == Fq12::one()
     }
 
