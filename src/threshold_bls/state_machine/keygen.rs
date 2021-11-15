@@ -31,7 +31,7 @@ pub struct Keygen {
     msgs1: Option<Store<BroadcastMsgs<party_i::KeyGenComm>>>,
     msgs2: Option<Store<BroadcastMsgs<party_i::KeyGenDecom>>>,
     msgs3: Option<Store<P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>>>,
-    msgs4: Option<Store<BroadcastMsgs<DLogProof<Bls12_381_2>>>>,
+    msgs4: Option<Store<BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>>>,
 
     msgs_queue: Vec<Msg<ProtocolMessage>>,
 
@@ -399,7 +399,7 @@ enum M {
     Round1(party_i::KeyGenComm),
     Round2(party_i::KeyGenDecom),
     Round3((VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)),
-    Round4(DLogProof<Bls12_381_2>),
+    Round4(DLogProof<Bls12_381_2, Sha256>),
 }
 
 // Error
@@ -455,6 +455,8 @@ impl From<InternalError> for Error {
 }
 
 use private::InternalError;
+use sha2::Sha256;
+
 mod private {
     #[derive(Debug)]
     #[non_exhaustive]

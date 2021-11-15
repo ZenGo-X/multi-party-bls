@@ -1,19 +1,20 @@
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 use curv::arithmetic::traits::*;
+use curv::cryptographic_primitives::proofs::ProofError;
 use curv::elliptic::curves::*;
 
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
+use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::BigInt;
 
-use crate::Error;
 use crate::basic_bls::BLSSignature;
 use crate::threshold_bls::utilities::{ECDDHProof, ECDDHStatement, ECDDHWitness};
-use curv::cryptographic_primitives::proofs::ProofError;
+use crate::Error;
 
 const SECURITY: usize = 256;
 
@@ -82,7 +83,7 @@ impl Keys {
 
     pub fn phase1_broadcast(&self) -> (KeyGenComm, KeyGenDecom) {
         let blind_factor = BigInt::sample(SECURITY);
-        let com = HashCommitment::create_commitment_with_user_defined_randomness(
+        let com = HashCommitment::<Sha256>::create_commitment_with_user_defined_randomness(
             &(BigInt::from_bytes(&self.y_i.to_bytes(true)) + BigInt::from(self.party_index)), // we add context to the hash function
             &blind_factor,
         );
@@ -101,14 +102,17 @@ impl Keys {
         bc1_vec: &Vec<KeyGenComm>,
     ) -> Result<(VerifiableSS<Bls12_381_2>, Vec<Scalar<Bls12_381_2>>, u16), Error> {
         // test length:
-        if decom_vec.len() != usize::from(params.share_count) || bc1_vec.len() != usize::from(params.share_count) {
+        if decom_vec.len() != usize::from(params.share_count)
+            || bc1_vec.len() != usize::from(params.share_count)
+        {
             return Err(Error::KeyGenMisMatchedVectors);
         }
         // test decommitments
         let correct_key_correct_decom_all = (0..bc1_vec.len())
             .map(|i| {
-                HashCommitment::create_commitment_with_user_defined_randomness(
-                    &(BigInt::from_bytes(&decom_vec[i].y_i.to_bytes(true)) + BigInt::from(i as u32)),
+                HashCommitment::<Sha256>::create_commitment_with_user_defined_randomness(
+                    &(BigInt::from_bytes(&decom_vec[i].y_i.to_bytes(true))
+                        + BigInt::from(i as u32)),
                     &decom_vec[i].blind_factor,
                 ) == bc1_vec[i].com
             })
@@ -130,7 +134,7 @@ impl Keys {
         secret_shares_vec: &Vec<Scalar<Bls12_381_2>>,
         vss_scheme_vec: &Vec<VerifiableSS<Bls12_381_2>>,
         index: u16,
-    ) -> Result<(SharedKeys, DLogProof<Bls12_381_2>), Error> {
+    ) -> Result<(SharedKeys, DLogProof<Bls12_381_2, Sha256>), Error> {
         if y_vec.len() != usize::from(params.share_count)
             || secret_shares_vec.len() != usize::from(params.share_count)
             || vss_scheme_vec.len() != usize::from(params.share_count)
@@ -168,12 +172,13 @@ impl Keys {
 
     pub fn verify_dlog_proofs(
         params: &ShamirSecretSharing,
-        dlog_proofs_vec: &[DLogProof<Bls12_381_2>],
+        dlog_proofs_vec: &[DLogProof<Bls12_381_2, Sha256>],
     ) -> Result<(), Error> {
         if dlog_proofs_vec.len() != usize::from(params.share_count) {
             return Err(Error::KeyGenMisMatchedVectors);
         }
-        let xi_dlog_verify = dlog_proofs_vec.iter()
+        let xi_dlog_verify = dlog_proofs_vec
+            .iter()
             .map(|proof| DLogProof::verify(proof).is_ok())
             .all(|x| x);
 
@@ -191,12 +196,15 @@ impl SharedKeys {
     }
 
     pub fn partial_sign(&self, x: &[u8]) -> (PartialSignature, Point<Bls12_381_1>) {
-        let H_x = Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(x)).expect("hash_to_curve must return valid point");
+        let H_x = Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(x))
+            .expect("hash_to_curve must return valid point");
         // Convert FE2 -> FE1
         let sk_i_fe1 = Scalar::from_raw(self.sk_i.clone().into_raw());
         let sigma_i = &H_x * &sk_i_fe1;
 
-        let w = ECDDHWitness { x: sk_i_fe1.to_bigint() };
+        let w = ECDDHWitness {
+            x: sk_i_fe1.to_bigint(),
+        };
 
         let delta = ECDDHStatement {
             g1: H_x.clone(),
@@ -253,13 +261,7 @@ impl SharedKeys {
         //verify ec_ddh proofs and signatures
 
         let partial_sigs_verify = (0..vk_vec.len())
-            .map(|i| {
-                Self::verify_partial_sig(
-                    H_x,
-                    &partial_sigs_vec[i],
-                    &vk_vec[i],
-                )
-            })
+            .map(|i| Self::verify_partial_sig(H_x, &partial_sigs_vec[i], &vk_vec[i]))
             .all(|x| x.is_ok());
         if partial_sigs_verify == false {
             return Err(Error::PartialSignatureVerificationError);

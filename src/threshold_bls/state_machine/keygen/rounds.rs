@@ -7,6 +7,7 @@ use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
 use round_based::Msg;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use thiserror::Error;
 
 use crate::threshold_bls::party_i;
@@ -168,7 +169,7 @@ impl Round3 {
         mut output: O,
     ) -> Result<Round4>
     where
-        O: Push<Msg<DLogProof<Bls12_381_2>>>,
+        O: Push<Msg<DLogProof<Bls12_381_2, Sha256>>>,
     {
         let params = ShamirSecretSharing {
             threshold: self.t.into(),
@@ -218,7 +219,7 @@ impl Round3 {
 
 pub struct Round4 {
     shared_keys: party_i::SharedKeys,
-    own_dlog_proof: DLogProof<Bls12_381_2>,
+    own_dlog_proof: DLogProof<Bls12_381_2, Sha256>,
 
     party_i: u16,
     t: u16,
@@ -226,7 +227,7 @@ pub struct Round4 {
 }
 
 impl Round4 {
-    pub fn proceed(self, input: BroadcastMsgs<DLogProof<Bls12_381_2>>) -> Result<LocalKey> {
+    pub fn proceed(self, input: BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>) -> Result<LocalKey> {
         let params = ShamirSecretSharing {
             threshold: self.t.into(),
             share_count: self.n.into(),
@@ -247,7 +248,10 @@ impl Round4 {
     pub fn is_expensive(&self) -> bool {
         true
     }
-    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<DLogProof<Bls12_381_2>>> {
+    pub fn expects_messages(
+        i: u16,
+        n: u16,
+    ) -> Store<BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>> {
         containers::BroadcastMsgsStore::new(i, n)
     }
 }
