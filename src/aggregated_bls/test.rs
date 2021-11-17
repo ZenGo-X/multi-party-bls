@@ -1,6 +1,6 @@
 use crate::aggregated_bls::party_i::{Keys, APK};
 use crate::basic_bls::BLSSignature;
-use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use curv::elliptic::curves::*;
 
 // test 3 out of 3
 #[test]
@@ -10,7 +10,11 @@ fn agg_sig_test_3() {
     let p3_keys = Keys::new(2);
 
     // each party broadcasts its public key pk_i
-    let pk_vec = vec![p1_keys.pk_i, p2_keys.pk_i, p3_keys.pk_i];
+    let pk_vec = vec![
+        p1_keys.pk_i.clone(),
+        p2_keys.pk_i.clone(),
+        p3_keys.pk_i.clone(),
+    ];
 
     // each party computes APK
     let apk = Keys::aggregate(&pk_vec);
@@ -60,14 +64,8 @@ pub fn test_agg_sig_3_batch_5() {
 
 #[test]
 pub fn test_agg_sig_3_batch_2() {
-    let msg_vec = vec![
-        [1].as_ref(),
-        [2].as_ref(),
-    ];
-    let bad_m_v = vec![
-        [6].as_ref(),
-        [7].as_ref(),
-    ];
+    let msg_vec = vec![[1].as_ref(), [2].as_ref()];
+    let bad_m_v = vec![[6].as_ref(), [7].as_ref()];
     agg_sig_test_n_batch_m(3, &msg_vec, &bad_m_v);
 }
 
@@ -80,41 +78,32 @@ pub fn agg_sig_test_n_batch_m(n: usize, msg_vec: &[&[u8]], bad_m_v: &[&[u8]]) {
     let bls_sig = sign_batch(n, &mkey_vec, &pk_vec, msg_vec);
 
     // test batch aggregation to verify as correct
-    assert_eq!(
-        Keys::aggregate_verify(&apk_vec, msg_vec, &bls_sig),
-        true
-    );
+    assert_eq!(Keys::aggregate_verify(&apk_vec, msg_vec, &bls_sig), true);
 
     // test verification to fail a bad entry in apk_vec
     let (_, _, bad_a_v) = keygen_batch(n, m);
-    assert_ne!(
-        Keys::aggregate_verify(&bad_a_v, msg_vec, &bls_sig),
-        true
-    );
+    assert_ne!(Keys::aggregate_verify(&bad_a_v, msg_vec, &bls_sig), true);
 
     // test verification to fail a bad entry in msg_vec
-    assert_ne!(
-        Keys::aggregate_verify(&apk_vec, bad_m_v, &bls_sig),
-        true
-    );
+    assert_ne!(Keys::aggregate_verify(&apk_vec, bad_m_v, &bls_sig), true);
 
     // test verification to fail a bad bls signature
     let (bad_k_v, bad_p_v, _) = keygen_batch(n, m);
     let bad_b_s = sign_batch(n, &bad_k_v, &bad_p_v, msg_vec);
-    assert_ne!(
-        Keys::aggregate_verify(&apk_vec, msg_vec, &bad_b_s),
-        true
-    );
+    assert_ne!(Keys::aggregate_verify(&apk_vec, msg_vec, &bad_b_s), true);
 }
 
-fn keygen(n_parties: usize) -> (Vec<Keys>, Vec<GE2>, APK) {
-    let keys_vec: Vec<Keys> = (0..n_parties).map(|i| Keys::new(i)).collect();
-    let pk_vec: Vec<GE2> = keys_vec.iter().map(|x| x.pk_i).collect();
+fn keygen(n_parties: usize) -> (Vec<Keys>, Vec<Point<Bls12_381_2>>, APK) {
+    let keys_vec: Vec<Keys> = (0..n_parties).map(Keys::new).collect();
+    let pk_vec: Vec<Point<Bls12_381_2>> = keys_vec.iter().map(|x| x.pk_i.clone()).collect();
     let apk = Keys::aggregate(&pk_vec);
     (keys_vec, pk_vec, apk)
 }
 
-fn keygen_batch(n_parties: usize, m_batches: usize) -> (Vec<Vec<Keys>>, Vec<Vec<GE2>>, Vec<APK>) {
+fn keygen_batch(
+    n_parties: usize,
+    m_batches: usize,
+) -> (Vec<Vec<Keys>>, Vec<Vec<Point<Bls12_381_2>>>, Vec<APK>) {
     let keygen_vec_batch: Vec<_> = (0..m_batches).map(|_| keygen(n_parties)).collect();
     let keys_vec_batch = keygen_vec_batch.iter().map(|x| x.0.clone()).collect();
     let pk_vec_batch = keygen_vec_batch.iter().map(|x| x.1.clone()).collect();
@@ -125,7 +114,7 @@ fn keygen_batch(n_parties: usize, m_batches: usize) -> (Vec<Vec<Keys>>, Vec<Vec<
 fn sign_batch(
     n_parties: usize,
     key_vec: &Vec<Vec<Keys>>,
-    pk_vec: &Vec<Vec<GE2>>,
+    pk_vec: &Vec<Vec<Point<Bls12_381_2>>>,
     msg_vec: &[&[u8]],
 ) -> BLSSignature {
     let sig_vec: Vec<Vec<_>> = (0..msg_vec.len())

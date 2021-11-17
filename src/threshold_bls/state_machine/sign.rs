@@ -4,7 +4,7 @@ use std::fmt;
 use std::mem::replace;
 use std::time::Duration;
 
-use curv::elliptic::curves::bls12_381::g1::GE as GE1;
+use curv::elliptic::curves::*;
 use round_based::containers::{
     push::{Push, PushExt},
     *,
@@ -17,9 +17,10 @@ use crate::basic_bls::BLSSignature;
 use crate::threshold_bls::party_i;
 use crate::threshold_bls::state_machine::keygen::LocalKey;
 
-mod rounds;
 pub use rounds::ProceedError;
 use rounds::{Round0, Round1};
+
+mod rounds;
 
 /// Signing protocol state machine
 ///
@@ -28,7 +29,7 @@ use rounds::{Round0, Round1};
 pub struct Sign {
     round: R,
 
-    msgs1: Option<Store<BroadcastMsgs<(u16, party_i::PartialSignature)>>>,
+    msgs1: Option<ReceiveFirstValidPartialSigs>,
 
     msgs_queue: Vec<Msg<ProtocolMessage>>,
 
@@ -59,14 +60,20 @@ impl Sign {
             return Err(Error::InvalidPartyIndex);
         }
         let mut state = Self {
+            msgs1: Some(Round1::expects_messages(
+                i,
+                n,
+                &local_key,
+                Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(&message))
+                    .expect("hash_to_curve must return valid point"),
+            )),
+
             round: R::Round0(Round0 {
                 key: local_key,
                 message,
                 i,
                 n,
             }),
-
-            msgs1: Some(Round1::expects_messages(i, n)),
 
             msgs_queue: vec![],
 
@@ -138,7 +145,7 @@ impl Sign {
 impl StateMachine for Sign {
     type MessageBody = ProtocolMessage;
     type Err = Error;
-    type Output = (GE1, BLSSignature);
+    type Output = (Point<Bls12_381_1>, BLSSignature);
 
     fn handle_incoming(&mut self, msg: Msg<Self::MessageBody>) -> Result<()> {
         let current_round = self.current_round();
@@ -251,7 +258,7 @@ pub enum Error {
 
     /// Received message didn't pass pre-validation
     #[error("received message didn't pass pre-validation: {0}")]
-    HandleMessage(#[source] StoreErr),
+    HandleMessage(#[source] ReceivedPartialSigNotValid),
     /// Received message which we didn't expect to receive now (e.g. message from previous round)
     #[error(
         "didn't expect to receive message from round {msg_round} (being at round {current_round})"
@@ -262,14 +269,17 @@ pub enum Error {
     DoublePickResult,
 
     /// Some internal assertions were failed, which is a bug
-    #[doc(hidding)]
+    #[doc(hidden)]
     #[error("internal error: {0:?}")]
     InternalError(InternalError),
 }
 
 impl IsCritical for Error {
     fn is_critical(&self) -> bool {
-        true
+        match self {
+            Error::HandleMessage(_) | Error::ReceivedOutOfOrderMessage { .. } => false,
+            _ => true,
+        }
     }
 }
 
@@ -279,14 +289,18 @@ impl From<InternalError> for Error {
     }
 }
 
+use crate::threshold_bls::state_machine::sign::rounds::{
+    ReceiveFirstValidPartialSigs, ReceivedPartialSigNotValid,
+};
 use private::InternalError;
+
 mod private {
     #[derive(Debug)]
     #[non_exhaustive]
     pub enum InternalError {
         /// [Messages store](super::MessageStore) reported that it received all messages it wanted to receive,
         /// but refused to return message container
-        RetrieveRoundMessages(super::StoreErr),
+        RetrieveRoundMessages(super::ReceivedPartialSigNotValid),
         #[doc(hidden)]
         StoreGone,
     }
@@ -319,7 +333,7 @@ impl fmt::Debug for Sign {
 enum R {
     Round0(Round0),
     Round1(Round1),
-    Final((GE1, BLSSignature)),
+    Final((Point<Bls12_381_1>, BLSSignature)),
     Gone,
 }
 
@@ -367,8 +381,8 @@ mod test {
         let (_, sigs): (Vec<_>, Vec<_>) = sign_simulation.run().unwrap().into_iter().unzip();
 
         // test all signatures are equal
-        let first = sigs[0];
-        assert!(sigs.iter().all(|&item| item == first));
+        let first = &sigs[0];
+        assert!(sigs.iter().all(|item| item == first));
         // test the signatures pass verification
         assert!(parties_keys[0].shared_keys.verify(&sigs[0], msg));
 

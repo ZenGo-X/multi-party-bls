@@ -2,12 +2,12 @@ use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{
     ShamirSecretSharing, VerifiableSS,
 };
-use curv::elliptic::curves::bls12_381::g2::FE as FE2;
-use curv::elliptic::curves::bls12_381::g2::GE as GE2;
+use curv::elliptic::curves::*;
 use round_based::containers::push::Push;
 use round_based::containers::{self, BroadcastMsgs, P2PMsgs, Store};
 use round_based::Msg;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use thiserror::Error;
 
 use crate::threshold_bls::party_i;
@@ -23,7 +23,7 @@ impl Round0 {
     where
         O: Push<Msg<party_i::KeyGenComm>>,
     {
-        let keys = party_i::Keys::phase1_create(usize::from(self.party_i) - 1);
+        let keys = party_i::Keys::phase1_create(self.party_i - 1);
         let (comm, decom) = keys.phase1_broadcast();
         output.push(Msg {
             sender: self.party_i,
@@ -103,11 +103,11 @@ impl Round2 {
         mut output: O,
     ) -> Result<Round3>
     where
-        O: Push<Msg<(VerifiableSS<GE2>, FE2)>>,
+        O: Push<Msg<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>>,
     {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let received_decom = input.into_vec_including_me(self.decom);
         let (vss_scheme, secret_shares, index) = self
@@ -133,7 +133,7 @@ impl Round2 {
 
             index,
             own_vss: vss_scheme,
-            own_share: secret_shares[usize::from(self.party_i - 1)],
+            own_share: secret_shares[usize::from(self.party_i - 1)].clone(),
 
             party_i: self.party_i,
             t: self.t,
@@ -151,11 +151,11 @@ impl Round2 {
 pub struct Round3 {
     keys: party_i::Keys,
 
-    y_vec: Vec<GE2>,
+    y_vec: Vec<Point<Bls12_381_2>>,
 
-    index: usize,
-    own_vss: VerifiableSS<GE2>,
-    own_share: FE2,
+    index: u16,
+    own_vss: VerifiableSS<Bls12_381_2>,
+    own_share: Scalar<Bls12_381_2>,
 
     party_i: u16,
     t: u16,
@@ -165,15 +165,15 @@ pub struct Round3 {
 impl Round3 {
     pub fn proceed<O>(
         self,
-        input: P2PMsgs<(VerifiableSS<GE2>, FE2)>,
+        input: P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>,
         mut output: O,
     ) -> Result<Round4>
     where
-        O: Push<Msg<DLogProof<GE2>>>,
+        O: Push<Msg<DLogProof<Bls12_381_2, Sha256>>>,
     {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let (vss_schemes, party_shares): (Vec<_>, Vec<_>) = input
             .into_vec_including_me((self.own_vss, self.own_share))
@@ -187,7 +187,7 @@ impl Round3 {
                 &self.y_vec,
                 &party_shares,
                 &vss_schemes,
-                &(self.index + 1),
+                self.index + 1,
             )
             .map_err(ProceedError::Round3VerifyVssConstruct)?;
 
@@ -209,14 +209,17 @@ impl Round3 {
     pub fn is_expensive(&self) -> bool {
         true
     }
-    pub fn expects_messages(i: u16, n: u16) -> Store<P2PMsgs<(VerifiableSS<GE2>, FE2)>> {
+    pub fn expects_messages(
+        i: u16,
+        n: u16,
+    ) -> Store<P2PMsgs<(VerifiableSS<Bls12_381_2>, Scalar<Bls12_381_2>)>> {
         containers::P2PMsgsStore::new(i, n)
     }
 }
 
 pub struct Round4 {
     shared_keys: party_i::SharedKeys,
-    own_dlog_proof: DLogProof<GE2>,
+    own_dlog_proof: DLogProof<Bls12_381_2, Sha256>,
 
     party_i: u16,
     t: u16,
@@ -224,10 +227,10 @@ pub struct Round4 {
 }
 
 impl Round4 {
-    pub fn proceed(self, input: BroadcastMsgs<DLogProof<GE2>>) -> Result<LocalKey> {
+    pub fn proceed(self, input: BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>) -> Result<LocalKey> {
         let params = ShamirSecretSharing {
-            threshold: self.t.into(),
-            share_count: self.n.into(),
+            threshold: self.t,
+            share_count: self.n,
         };
         let dlog_proofs = input.into_vec_including_me(self.own_dlog_proof);
         party_i::Keys::verify_dlog_proofs(&params, &dlog_proofs)
@@ -245,7 +248,10 @@ impl Round4 {
     pub fn is_expensive(&self) -> bool {
         true
     }
-    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<DLogProof<GE2>>> {
+    pub fn expects_messages(
+        i: u16,
+        n: u16,
+    ) -> Store<BroadcastMsgs<DLogProof<Bls12_381_2, Sha256>>> {
         containers::BroadcastMsgsStore::new(i, n)
     }
 }
@@ -254,7 +260,7 @@ impl Round4 {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct LocalKey {
     pub(in crate::threshold_bls::state_machine) shared_keys: party_i::SharedKeys,
-    pub(in crate::threshold_bls::state_machine) vk_vec: Vec<GE2>,
+    pub(in crate::threshold_bls::state_machine) vk_vec: Vec<Point<Bls12_381_2>>,
 
     pub(in crate::threshold_bls::state_machine) i: u16,
     pub(in crate::threshold_bls::state_machine) t: u16,
@@ -262,15 +268,51 @@ pub struct LocalKey {
 }
 
 impl LocalKey {
+    pub fn new(
+        t: u16,
+        n: u16,
+        sk_i: Scalar<Bls12_381_2>,
+        vk_vec: Vec<Point<Bls12_381_2>>,
+        tpk: Point<Bls12_381_2>,
+    ) -> Result<Self, InvalidLocalKey> {
+        if n < 2 {
+            return Err(InvalidLocalKey::TooFewParties { n });
+        }
+        if !(1 <= t && t < n) {
+            return Err(InvalidLocalKey::ThresholdNotInRange { t, n });
+        }
+        let vk_i = Point::generator() * &sk_i;
+        let i = (1..)
+            .zip(&vk_vec)
+            .find_map(|(j, vk_j)| if vk_i == *vk_j { Some(j) } else { None })
+            .ok_or(InvalidLocalKey::VkDoesntIncludeSk)?;
+
+        Ok(LocalKey {
+            shared_keys: party_i::SharedKeys {
+                index: i - 1,
+                params: ShamirSecretSharing {
+                    threshold: t,
+                    share_count: n,
+                },
+                vk: tpk,
+                sk_i,
+            },
+            vk_vec,
+
+            i,
+            t,
+            n,
+        })
+    }
     /// Public key of secret shared between parties
-    pub fn public_key(&self) -> GE2 {
-        self.shared_keys.vk
+    pub fn public_key(&self) -> Point<Bls12_381_2> {
+        self.shared_keys.vk.clone()
     }
 }
 
 // Errors
 
-type Result<T> = std::result::Result<T, ProceedError>;
+type Result<T, E = ProceedError> = std::result::Result<T, E>;
 
 /// Proceeding protocol error
 ///
@@ -284,4 +326,15 @@ pub enum ProceedError {
     Round3VerifyVssConstruct(crate::Error),
     #[error("round 4: verify dlog proof: {0:?}")]
     Round4VerifyDLogProof(crate::Error),
+}
+
+/// Construction [LocalKey] error
+#[derive(Debug, Error)]
+pub enum InvalidLocalKey {
+    #[error("threshold not in range t={}, range=[1,{}]", t, n-1)]
+    ThresholdNotInRange { t: u16, n: u16 },
+    #[error("too few parties: {n}")]
+    TooFewParties { n: u16 },
+    #[error("vk_vec doesn't include vk_i = sk_i G")]
+    VkDoesntIncludeSk,
 }
