@@ -1,33 +1,28 @@
 #![allow(non_snake_case)]
 
-use curv::elliptic::curves::bls12_381::g1::FE as FE1;
-use curv::elliptic::curves::bls12_381::g1::GE as GE1;
-use curv::elliptic::curves::bls12_381::g2::FE as FE2;
-use curv::elliptic::curves::bls12_381::g2::GE as GE2;
-use curv::elliptic::curves::bls12_381::Pair;
-use curv::elliptic::curves::traits::{ECPoint, ECScalar};
+use curv::elliptic::curves::*;
+use curv::elliptic::curves::bls12_381::{self, Pair};
 
 use ff_zeroize::Field;
-use pairing_plus::bls12_381::{Fq12, G1Affine};
-use pairing_plus::serdes::SerDes;
+use pairing_plus::bls12_381::{Fq12};
 
 /// Based on https://eprint.iacr.org/2018/483.pdf
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyPairG2 {
-    Y: GE2,
-    x: FE2,
+    Y: Point<Bls12_381_2>,
+    x: Scalar<Bls12_381_2>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BLSSignature {
-    pub sigma: GE1,
+    pub sigma: Point<Bls12_381_1>,
 }
 
 impl KeyPairG2 {
     pub fn new() -> Self {
-        let x: FE2 = ECScalar::new_random();
-        let Y = GE2::generator() * &x;
+        let x = Scalar::random();
+        let Y = Point::generator() * &x;
         KeyPairG2 { x, Y }
     }
 }
@@ -35,25 +30,25 @@ impl KeyPairG2 {
 impl BLSSignature {
     // compute sigma  = x H(m)
     pub fn sign(message: &[u8], keys: &KeyPairG2) -> Self {
-        let H_m = GE1::hash_to_curve(message);
-        let fe1_x: FE1 = ECScalar::from(&ECScalar::to_big_int(&keys.x));
+        let H_m = Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(message))
+            .expect("hash_to_curve must return valid point");
+        // Convert FE2 -> FE1
+        let fe1_x = Scalar::from_raw(keys.x.clone().into_raw());
         BLSSignature {
             sigma: H_m * &fe1_x,
         }
     }
 
     // check e(H(m), Y) == e(sigma, g2)
-    pub fn verify(&self, message: &[u8], pubkey: &GE2) -> bool {
-        let H_m = GE1::hash_to_curve(message);
-        let product = Pair::efficient_pairing_mul(&H_m, pubkey, &self.sigma, &(-GE2::generator()));
+    pub fn verify(&self, message: &[u8], pubkey: &Point<Bls12_381_2>) -> bool {
+        let H_m = Point::from_raw(bls12_381::g1::G1Point::hash_to_curve(message))
+            .expect("hash_to_curve must return valid point");
+        let product = Pair::efficient_pairing_mul(&H_m, pubkey, &self.sigma, &(-Point::generator()));
         product.e == Fq12::one()
     }
 
     pub fn to_bytes(&self, compressed: bool) -> Vec<u8> {
-        let mut pk = vec![];
-        G1Affine::serialize(&self.sigma.get_element(), &mut pk, compressed)
-            .expect("serialize to vec should always succeed");
-        pk
+        self.sigma.to_bytes(compressed).to_vec()
     }
 }
 

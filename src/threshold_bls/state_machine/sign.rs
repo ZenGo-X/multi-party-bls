@@ -4,7 +4,7 @@ use std::fmt;
 use std::mem::replace;
 use std::time::Duration;
 
-use curv::elliptic::curves::bls12_381::g1::GE as GE1;
+use curv::elliptic::curves::*;
 use round_based::containers::{
     push::{Push, PushExt},
     *,
@@ -138,7 +138,7 @@ impl Sign {
 impl StateMachine for Sign {
     type MessageBody = ProtocolMessage;
     type Err = Error;
-    type Output = (GE1, BLSSignature);
+    type Output = (Point<Bls12_381_1>, BLSSignature);
 
     fn handle_incoming(&mut self, msg: Msg<Self::MessageBody>) -> Result<()> {
         let current_round = self.current_round();
@@ -262,7 +262,7 @@ pub enum Error {
     DoublePickResult,
 
     /// Some internal assertions were failed, which is a bug
-    #[doc(hidding)]
+    #[doc(hidden)]
     #[error("internal error: {0:?}")]
     InternalError(InternalError),
 }
@@ -319,7 +319,7 @@ impl fmt::Debug for Sign {
 enum R {
     Round0(Round0),
     Round1(Round1),
-    Final((GE1, BLSSignature)),
+    Final((Point<Bls12_381_1>, BLSSignature)),
     Gone,
 }
 
@@ -367,8 +367,8 @@ mod test {
         let (_, sigs): (Vec<_>, Vec<_>) = sign_simulation.run().unwrap().into_iter().unzip();
 
         // test all signatures are equal
-        let first = sigs[0];
-        assert!(sigs.iter().all(|&item| item == first));
+        let first = &sigs[0];
+        assert!(sigs.iter().all(|item| item == first));
         // test the signatures pass verification
         assert!(parties_keys[0].shared_keys.verify(&sigs[0], msg));
 
